@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/data/product_repository.dart';
-import '../lib/models/product.dart';
-import '../lib/screens/product_form_screen.dart';
+
+import 'package:myshoes/data/product_repository.dart';
+import 'package:myshoes/models/product.dart';
+import 'package:myshoes/screens/product_form_screen.dart';
 
 class FakeProductRepository extends ProductRepository {
   FakeProductRepository({this.brands = const []});

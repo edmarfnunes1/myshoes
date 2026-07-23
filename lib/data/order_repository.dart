@@ -1,4 +1,7 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../models/order.dart';
+import '../models/order_item.dart';
 import 'app_database.dart';
 
 class OrderRepository {
@@ -10,32 +13,91 @@ class OrderRepository {
   Future<List<Order>> findAll({String search = ''}) async {
     final database = await _database.database;
     final normalized = search.trim().toLowerCase();
-    final rows = await database.rawQuery('''
-      SELECT o.*, p.brand || ' ' || p.model AS product_name
+
+    final rows = await database.rawQuery(
+      '''
+      SELECT DISTINCT o.*
       FROM orders o
-      INNER JOIN products p ON p.id = o.product_id
-      ${normalized.isEmpty ? '' : 'WHERE LOWER(o.customer_name) LIKE ? OR LOWER(COALESCE(o.customer_phone, \'\')) LIKE ? OR LOWER(p.brand || \' \' || p.model) LIKE ?'}
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN products p ON p.id = oi.product_id
+      ${normalized.isEmpty ? '' : '''
+      WHERE LOWER(o.customer_name) LIKE ?
+         OR LOWER(COALESCE(o.customer_phone, '')) LIKE ?
+         OR LOWER(COALESCE(p.brand || ' ' || p.model, '')) LIKE ?
+      '''}
       ORDER BY o.created_at DESC, o.id DESC
-    ''', normalized.isEmpty
-        ? null
-        : ['%$normalized%', '%$normalized%', '%$normalized%']);
-    return rows.map(Order.fromMap).toList();
+      ''',
+      normalized.isEmpty
+          ? null
+          : ['%$normalized%', '%$normalized%', '%$normalized%'],
+    );
+
+    final orders = <Order>[];
+    for (final row in rows) {
+      final orderId = row['id'] as int;
+      final items = await _findItems(database, orderId);
+      orders.add(Order.fromMap(row, items: items));
+    }
+    return orders;
+  }
+
+  Future<Order?> findById(int id) async {
+    final database = await _database.database;
+    final rows = await database.query(
+      'orders',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final items = await _findItems(database, id);
+    return Order.fromMap(rows.first, items: items);
+  }
+
+  Future<List<OrderItem>> _findItems(
+    DatabaseExecutor database,
+    int orderId,
+  ) async {
+    final rows = await database.rawQuery('''
+      SELECT oi.*, p.brand || ' ' || p.model AS product_name
+      FROM order_items oi
+      INNER JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ?
+      ORDER BY oi.id
+    ''', [orderId]);
+    return rows.map<OrderItem>(OrderItem.fromMap).toList();
   }
 
   Future<void> save(Order order) async {
     final database = await _database.database;
-    final values = order.toMap()..remove('id');
-    if (order.id == null) {
-      await database.insert('orders', values);
-    } else {
-      values.remove('created_at');
-      await database.update(
-        'orders',
-        values,
-        where: 'id = ?',
-        whereArgs: [order.id],
-      );
-    }
+    await database.transaction((transaction) async {
+      final values = order.toMap()..remove('id');
+      late final int orderId;
+
+      if (order.id == null) {
+        orderId = await transaction.insert('orders', values);
+      } else {
+        orderId = order.id!;
+        values.remove('created_at');
+        await transaction.update(
+          'orders',
+          values,
+          where: 'id = ?',
+          whereArgs: [orderId],
+        );
+        await transaction.delete(
+          'order_items',
+          where: 'order_id = ?',
+          whereArgs: [orderId],
+        );
+      }
+
+      for (final item in order.items) {
+        final itemValues = item.copyWith(orderId: orderId).toMap()
+          ..remove('id');
+        await transaction.insert('order_items', itemValues);
+      }
+    });
   }
 
   Future<void> delete(int id) async {

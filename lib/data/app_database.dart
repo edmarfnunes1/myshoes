@@ -19,20 +19,28 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
+      onConfigure: (database) async {
+        await database.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (database, version) async {
         await _createProductsTable(database);
         await _createCustomersTable(database);
         await _createOrdersTable(database);
+        await _createOrderItemsTable(database);
       },
       onUpgrade: (database, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createCustomersTable(database);
         }
         if (oldVersion < 3) {
-          await _createOrdersTable(database);
-        } else if (oldVersion < 4) {
+          await _createLegacyOrdersTable(database);
+        }
+        if (oldVersion < 4) {
           await _migrateOrdersToInlineCustomer(database);
+        }
+        if (oldVersion < 5) {
+          await _migrateOrdersToItems(database);
         }
       },
     );
@@ -64,12 +72,11 @@ class AppDatabase {
     ''');
   }
 
-  Future<void> _createOrdersTable(DatabaseExecutor database) async {
+  Future<void> _createLegacyOrdersTable(DatabaseExecutor database) async {
     await database.execute('''
       CREATE TABLE orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_name TEXT NOT NULL,
-        customer_phone TEXT,
+        customer_id INTEGER,
         product_id INTEGER NOT NULL,
         shoe_size INTEGER NOT NULL,
         quantity INTEGER NOT NULL,
@@ -82,23 +89,60 @@ class AppDatabase {
     ''');
   }
 
+  Future<void> _createOrdersTable(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT,
+        payment_status TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createOrderItemsTable(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        shoe_size INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        with_box INTEGER NOT NULL DEFAULT 0,
+        unit_price REAL NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id)
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)',
+    );
+  }
+
   Future<void> _migrateOrdersToInlineCustomer(Database database) async {
     await database.transaction((transaction) async {
       await transaction.execute('ALTER TABLE orders RENAME TO orders_old');
-      await _createOrdersTable(transaction);
+      await transaction.execute('''
+        CREATE TABLE orders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_name TEXT NOT NULL,
+          customer_phone TEXT,
+          product_id INTEGER NOT NULL,
+          shoe_size INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          with_box INTEGER NOT NULL DEFAULT 0,
+          sale_value REAL NOT NULL,
+          payment_status TEXT,
+          notes TEXT,
+          created_at TEXT NOT NULL
+        )
+      ''');
       await transaction.execute('''
         INSERT INTO orders (
-          id,
-          customer_name,
-          customer_phone,
-          product_id,
-          shoe_size,
-          quantity,
-          with_box,
-          sale_value,
-          payment_status,
-          notes,
-          created_at
+          id, customer_name, customer_phone, product_id, shoe_size, quantity,
+          with_box, sale_value, payment_status, notes, created_at
         )
         SELECT
           o.id,
@@ -119,4 +163,31 @@ class AppDatabase {
     });
   }
 
+  Future<void> _migrateOrdersToItems(Database database) async {
+    await database.transaction((transaction) async {
+      await transaction.execute('ALTER TABLE orders RENAME TO orders_old');
+      await _createOrdersTable(transaction);
+      await _createOrderItemsTable(transaction);
+
+      await transaction.execute('''
+        INSERT INTO orders (
+          id, customer_name, customer_phone, payment_status, notes, created_at
+        )
+        SELECT
+          id, customer_name, customer_phone, payment_status, notes, created_at
+        FROM orders_old
+      ''');
+
+      await transaction.execute('''
+        INSERT INTO order_items (
+          order_id, product_id, shoe_size, quantity, with_box, unit_price
+        )
+        SELECT
+          id, product_id, shoe_size, quantity, with_box, sale_value
+        FROM orders_old
+      ''');
+
+      await transaction.execute('DROP TABLE orders_old');
+    });
+  }
 }

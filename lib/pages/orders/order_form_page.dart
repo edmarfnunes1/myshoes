@@ -6,13 +6,21 @@ import 'package:intl/intl.dart';
 import '../../data/order_repository.dart';
 import '../../data/product_repository.dart';
 import '../../models/order.dart';
+import '../../models/order_item.dart';
 import '../../models/product.dart';
 import '../../widgets/currency_input_formatter.dart';
 
 class OrderFormPage extends StatefulWidget {
-  const OrderFormPage({super.key, this.order});
+  const OrderFormPage({
+    super.key,
+    this.order,
+    this.orderRepository,
+    this.productRepository,
+  });
 
   final Order? order;
+  final OrderRepository? orderRepository;
+  final ProductRepository? productRepository;
 
   @override
   State<OrderFormPage> createState() => _OrderFormPageState();
@@ -20,18 +28,19 @@ class OrderFormPage extends StatefulWidget {
 
 class _OrderFormPageState extends State<OrderFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final _orderRepository = OrderRepository();
-  final _productRepository = ProductRepository();
+  late final OrderRepository _orderRepository;
+  late final ProductRepository _productRepository;
   final _customerNameController = TextEditingController();
   final _customerPhoneController = TextEditingController();
-  final _valueController = TextEditingController();
   final _notesController = TextEditingController();
+  final _currency = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+    decimalDigits: 2,
+  );
 
   List<Product> _products = const [];
-  Product? _product;
-  int? _shoeSize;
-  int _quantity = 1;
-  bool _withBox = false;
+  List<OrderItem> _items = [];
   String? _paymentStatus;
   bool _loading = true;
   bool _saving = false;
@@ -42,71 +51,97 @@ class _OrderFormPageState extends State<OrderFormPage> {
   @override
   void initState() {
     super.initState();
+    _orderRepository = widget.orderRepository ?? OrderRepository();
+    _productRepository = widget.productRepository ?? ProductRepository();
     _loadData();
   }
 
   Future<void> _loadData() async {
     _products = await _productRepository.findAll();
 
-    final order = widget.order;
+    var order = widget.order;
+    if (order?.id != null) {
+      order = await _orderRepository.findById(order!.id!) ?? order;
+    }
+
     if (order != null) {
       _customerNameController.text = order.customerName;
       _customerPhoneController.text = order.customerPhone ?? '';
-      _product = _products.where((e) => e.id == order.productId).firstOrNull;
-      _shoeSize = order.shoeSize;
-      _quantity = order.quantity;
-      _withBox = order.withBox;
+      _items = List<OrderItem>.from(order.items);
       _paymentStatus = order.paymentStatus;
       _notesController.text = order.notes ?? '';
-      _valueController.text = NumberFormat.currency(
-        locale: 'pt_BR',
-        symbol: 'R\$',
-        decimalDigits: 2,
-      ).format(order.saleValue);
     }
 
     if (mounted) setState(() => _loading = false);
   }
 
-  List<int> get _sizes {
-    final product = _product;
-    if (product == null) return const [];
-    return [
-      for (var size = product.minimumSize;
-          size <= product.maximumSize;
-          size++)
-        size,
-    ];
+  Product? _productById(int productId) {
+    for (final product in _products) {
+      if (product.id == productId) return product;
+    }
+    return null;
   }
 
-  void _selectProduct(Product? product) {
-    setState(() {
-      _product = product;
-      _shoeSize = null;
-      if (product?.salePrice != null) {
-        _valueController.text = NumberFormat.currency(
-          locale: 'pt_BR',
-          symbol: 'R\$',
-          decimalDigits: 2,
-        ).format(product!.salePrice);
-      }
-    });
-  }
-
-  Future<void> _showProductPicker() async {
-    final selectedProduct = await showModalBottomSheet<Product>(
+  Future<void> _addItem() async {
+    final product = await showModalBottomSheet<Product>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _ProductPickerSheet(
-        products: _products,
-        initialProduct: _product,
+      builder: (context) => _ProductPickerSheet(products: _products),
+    );
+    if (product == null || !mounted) return;
+
+    final item = await showModalBottomSheet<OrderItem>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _OrderItemSheet(product: product),
+    );
+    if (item == null) return;
+
+    setState(() => _mergeOrAdd(item));
+  }
+
+  Future<void> _editItem(int index) async {
+    final current = _items[index];
+    final product = _productById(current.productId);
+    if (product == null) return;
+
+    final edited = await showModalBottomSheet<OrderItem>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _OrderItemSheet(
+        product: product,
+        initialItem: current,
       ),
     );
+    if (edited == null) return;
 
-    if (selectedProduct != null) {
-      _selectProduct(selectedProduct);
+    setState(() {
+      _items.removeAt(index);
+      _mergeOrAdd(edited);
+    });
+  }
+
+  void _mergeOrAdd(OrderItem item) {
+    final existingIndex = _items.indexWhere(
+      (current) =>
+          current.productId == item.productId &&
+          current.shoeSize == item.shoeSize &&
+          current.withBox == item.withBox &&
+          (current.unitPrice - item.unitPrice).abs() < 0.001,
+    );
+
+    if (existingIndex == -1) {
+      _items.add(item);
+      return;
     }
+
+    final existing = _items[existingIndex];
+    _items[existingIndex] = existing.copyWith(
+      quantity: existing.quantity + item.quantity,
+    );
   }
 
   Future<void> _pickContact() async {
@@ -147,7 +182,6 @@ class _OrderFormPageState extends State<OrderFormPage> {
       final phone = contact.phones.isEmpty ? '' : contact.phones.first.number;
       _customerNameController.text = contact.displayName?.trim() ?? '';
       _customerPhoneController.text = phone.trim();
-
       if (mounted) setState(() {});
     } on PlatformException {
       if (mounted) {
@@ -165,6 +199,12 @@ class _OrderFormPageState extends State<OrderFormPage> {
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+    if (_items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Adicione pelo menos um produto.')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -175,11 +215,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
           customerPhone: _customerPhoneController.text.trim().isEmpty
               ? null
               : _customerPhoneController.text.trim(),
-          productId: _product!.id!,
-          shoeSize: _shoeSize!,
-          quantity: _quantity,
-          withBox: _withBox,
-          saleValue: CurrencyInputFormatter.parse(_valueController.text)!,
+          items: _items,
           paymentStatus: _paymentStatus,
           notes: _notesController.text.trim().isEmpty
               ? null
@@ -199,11 +235,12 @@ class _OrderFormPageState extends State<OrderFormPage> {
     }
   }
 
+  double get _total => _items.fold(0, (sum, item) => sum + item.total);
+
   @override
   void dispose() {
     _customerNameController.dispose();
     _customerPhoneController.dispose();
-    _valueController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -221,12 +258,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
-                  Text(
-                    'Cliente',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
+                  _sectionTitle(context, 'Cliente'),
                   const SizedBox(height: 12),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -239,9 +271,10 @@ class _OrderFormPageState extends State<OrderFormPage> {
                             labelText: 'Nome *',
                             prefixIcon: Icon(Icons.person_outline),
                           ),
-                          validator: (value) => value == null || value.trim().isEmpty
-                              ? 'Informe o nome do cliente.'
-                              : null,
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Informe o nome do cliente.'
+                                  : null,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -273,229 +306,161 @@ class _OrderFormPageState extends State<OrderFormPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text(
-                    'Produtos',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                  Row(
+                    children: [
+                      Expanded(child: _sectionTitle(context, 'Itens do pedido')),
+                      Text(
+                        '${_items.length} ${_items.length == 1 ? 'item' : 'itens'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
-                  FormField<Product>(
-                    initialValue: _product,
-                    validator: (_) =>
-                        _product == null ? 'Adicione um produto.' : null,
-                    builder: (field) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (_items.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Column(
                         children: [
-                          if (_product == null)
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _showProductPicker,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Adicionar produto'),
+                          Icon(Icons.shopping_bag_outlined, size: 40),
+                          SizedBox(height: 8),
+                          Text('Nenhum produto adicionado.'),
+                        ],
+                      ),
+                    )
+                  else
+                    ...List.generate(_items.length, (index) {
+                      final item = _items[index];
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == _items.length - 1 ? 0 : 12,
+                        ),
+                        child: _OrderItemCard(
+                          item: item,
+                          currency: _currency,
+                          onEdit: () => _editItem(index),
+                          onDelete: () => setState(() => _items.removeAt(index)),
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _products.isEmpty ? null : _addItem,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Adicionar produto'),
+                    ),
+                  ),
+                  if (_products.isEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Cadastre um produto antes de lançar o pedido.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  if (_items.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.receipt_long_outlined),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Total do pedido',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          Text(
+                            _currency.format(_total),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return DropdownMenu<String>(
+                        width: constraints.maxWidth,
+                        initialSelection: _paymentStatus,
+                        label: const Text('Situação do pagamento'),
+                        leadingIcon: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                        ),
+                        trailingIcon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                        ),
+                        selectedTrailingIcon: const Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                        ),
+                        menuHeight: 180,
+                        inputDecorationTheme: InputDecorationTheme(
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        menuStyle: MenuStyle(
+                          backgroundColor: WidgetStatePropertyAll(
+                            Theme.of(context).colorScheme.surface,
+                          ),
+                          elevation: const WidgetStatePropertyAll(4),
+                          padding: const WidgetStatePropertyAll(
+                            EdgeInsets.symmetric(vertical: 6),
+                          ),
+                          shape: WidgetStatePropertyAll(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                        dropdownMenuEntries: _statuses
+                            .map(
+                              (status) => DropdownMenuEntry<String>(
+                                value: status,
+                                label: status,
                               ),
                             )
-                          else
-                            Card(
-                              margin: EdgeInsets.zero,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const CircleAvatar(
-                                          child: Icon(
-                                            Icons.directions_run_outlined,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '${_product!.brand} ${_product!.model}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Numerações ${_product!.minimumSize} a ${_product!.maximumSize}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall,
-                                              ),
-                                              if (_product!.salePrice != null)
-                                                Text(
-                                                  NumberFormat.currency(
-                                                    locale: 'pt_BR',
-                                                    symbol: 'R\$',
-                                                    decimalDigits: 2,
-                                                  ).format(
-                                                    _product!.salePrice,
-                                                  ),
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Remover produto',
-                                          onPressed: () {
-                                            _selectProduct(null);
-                                            field.didChange(null);
-                                          },
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton.icon(
-                                        onPressed: _showProductPicker,
-                                        icon: const Icon(Icons.swap_horiz),
-                                        label: const Text('Trocar produto'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (field.hasError) ...[
-                            const SizedBox(height: 8),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                field.errorText!,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                            .toList(),
+                        onSelected: (value) =>
+                            setState(() => _paymentStatus = value),
                       );
                     },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<int>(
-                    initialValue: _shoeSize,
-                    decoration: const InputDecoration(
-                      labelText: 'Numeração *',
-                      prefixIcon: Icon(Icons.straighten),
-                    ),
-                    items: _sizes
-                        .map(
-                          (size) => DropdownMenuItem(
-                            value: size,
-                            child: Text(size.toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _product == null
-                        ? null
-                        : (value) => setState(() => _shoeSize = value),
-                    validator: (value) =>
-                        value == null ? 'Selecione a numeração.' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Quantidade *',
-                      prefixIcon: Icon(Icons.numbers),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: _quantity > 1
-                              ? () => setState(() => _quantity--)
-                              : null,
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        Expanded(
-                          child: Text(
-                            '$_quantity',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => setState(() => _quantity++),
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _withBox,
-                    title: const Text('Com caixa'),
-                    subtitle: const Text(
-                      'Desmarcado será considerado sem caixa.',
-                    ),
-                    onChanged: (value) =>
-                        setState(() => _withBox = value ?? false),
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _valueController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [CurrencyInputFormatter()],
-                    decoration: const InputDecoration(
-                      labelText: 'Valor de venda *',
-                      prefixIcon: Icon(Icons.payments_outlined),
-                    ),
-                    validator: (value) {
-                      final amount =
-                          CurrencyInputFormatter.parse(value ?? '');
-                      return amount == null || amount <= 0
-                          ? 'Informe um valor de venda válido.'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _paymentStatus,
-                    decoration: const InputDecoration(
-                      labelText: 'Situação do pagamento',
-                      prefixIcon:
-                          Icon(Icons.account_balance_wallet_outlined),
-                    ),
-                    items: _statuses
-                        .map(
-                          (status) => DropdownMenuItem(
-                            value: status,
-                            child: Text(status),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _paymentStatus = value),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -524,16 +489,380 @@ class _OrderFormPageState extends State<OrderFormPage> {
             ),
     );
   }
+
+  Widget _sectionTitle(BuildContext context, String text) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+    );
+  }
+}
+
+class _OrderItemCard extends StatelessWidget {
+  const _OrderItemCard({
+    required this.item,
+    required this.currency,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final OrderItem item;
+  final NumberFormat currency;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(
+                  child: Icon(Icons.directions_run_outlined),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.productName ?? 'Produto',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _InfoChip(label: 'Nº ${item.shoeSize}'),
+                          _InfoChip(label: 'Qtd. ${item.quantity}'),
+                          _InfoChip(
+                            label: item.withBox ? 'Com caixa' : 'Sem caixa',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') onEdit();
+                    if (value == 'delete') onDelete();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Editar item')),
+                    PopupMenuItem(value: 'delete', child: Text('Remover item')),
+                  ],
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${currency.format(item.unitPrice)} cada',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                Text(
+                  currency.format(item.total),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+    );
+  }
+}
+
+class _OrderItemSheet extends StatefulWidget {
+  const _OrderItemSheet({required this.product, this.initialItem});
+
+  final Product product;
+  final OrderItem? initialItem;
+
+  @override
+  State<_OrderItemSheet> createState() => _OrderItemSheetState();
+}
+
+class _OrderItemSheetState extends State<_OrderItemSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _valueController = TextEditingController();
+  int? _shoeSize;
+  int _quantity = 1;
+  bool _withBox = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final item = widget.initialItem;
+    _shoeSize = item?.shoeSize;
+    _quantity = item?.quantity ?? 1;
+    _withBox = item?.withBox ?? false;
+    final value = item?.unitPrice ?? widget.product.salePrice;
+    if (value != null) {
+      _valueController.text = NumberFormat.currency(
+        locale: 'pt_BR',
+        symbol: 'R\$',
+        decimalDigits: 2,
+      ).format(value);
+    }
+  }
+
+  List<int> get _sizes => [
+        for (
+          var size = widget.product.minimumSize;
+          size <= widget.product.maximumSize;
+          size++
+        )
+          size,
+      ];
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(
+      context,
+      OrderItem(
+        productId: widget.product.id!,
+        shoeSize: _shoeSize!,
+        quantity: _quantity,
+        withBox: _withBox,
+        unitPrice: CurrencyInputFormatter.parse(_valueController.text)!,
+        productName: '${widget.product.brand} ${widget.product.model}',
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _valueController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.initialItem == null
+                          ? 'Configurar produto'
+                          : 'Editar item',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${widget.product.brand} ${widget.product.model}',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'Numerações ${widget.product.minimumSize} a ${widget.product.maximumSize}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 128,
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _shoeSize,
+                      alignment: Alignment.center,
+                      decoration: const InputDecoration(
+                        labelText: 'Numeração *',
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                      ),
+                      items: _sizes
+                          .map(
+                            (size) => DropdownMenuItem(
+                              value: size,
+                              alignment: Alignment.center,
+                              child: Text(size.toString()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(() => _shoeSize = value),
+                      validator: (value) => value == null
+                          ? 'Selecione a numeração.'
+                          : null,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 156,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 6),
+                          child: Text(
+                            'Quantidade *',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton(
+                                onPressed: _quantity > 1
+                                    ? () => setState(() => _quantity--)
+                                    : null,
+                                icon: const Icon(Icons.remove),
+                              ),
+                              Text(
+                                '$_quantity',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              IconButton(
+                                onPressed: () => setState(() => _quantity++),
+                                icon: const Icon(Icons.add),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 52,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => setState(() => _withBox = !_withBox),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: _withBox,
+                            onChanged: (value) =>
+                                setState(() => _withBox = value ?? false),
+                          ),
+                          const Text('Com caixa'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _valueController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [CurrencyInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Valor unitário *',
+                  prefixIcon: Icon(Icons.payments_outlined),
+                ),
+                validator: (value) {
+                  final amount = CurrencyInputFormatter.parse(value ?? '');
+                  return amount == null || amount <= 0
+                      ? 'Informe um valor válido.'
+                      : null;
+                },
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _submit,
+                      child: Text(
+                        widget.initialItem == null ? 'Adicionar' : 'Salvar',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ProductPickerSheet extends StatefulWidget {
-  const _ProductPickerSheet({
-    required this.products,
-    this.initialProduct,
-  });
+  const _ProductPickerSheet({required this.products});
 
   final List<Product> products;
-  final Product? initialProduct;
 
   @override
   State<_ProductPickerSheet> createState() => _ProductPickerSheetState();
@@ -544,19 +873,13 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
   Product? _selectedProduct;
   String _search = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _selectedProduct = widget.initialProduct;
-  }
-
   List<Product> get _filteredProducts {
     final query = _search.trim().toLowerCase();
     if (query.isEmpty) return widget.products;
-
     return widget.products.where((product) {
-      final name = '${product.brand} ${product.model}'.toLowerCase();
-      return name.contains(query);
+      return '${product.brand} ${product.model}'
+          .toLowerCase()
+          .contains(query);
     }).toList();
   }
 
@@ -569,7 +892,6 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SizedBox(
@@ -583,14 +905,14 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Adicionar produto',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      'Selecionar produto',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Fechar',
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
                   ),
@@ -602,14 +924,12 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
               child: TextField(
                 controller: _searchController,
                 autofocus: true,
-                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   labelText: 'Pesquisar produto',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _search.isEmpty
                       ? null
                       : IconButton(
-                          tooltip: 'Limpar pesquisa',
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _search = '');
@@ -623,30 +943,28 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
             const SizedBox(height: 12),
             Expanded(
               child: _filteredProducts.isEmpty
-                  ? const Center(
-                      child: Text('Nenhum produto encontrado.'),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: _filteredProducts.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final product = _filteredProducts[index];
-                        final selected = product.id == _selectedProduct?.id;
-
-                        return RadioListTile<Product>(
-                          value: product,
-                          groupValue: _selectedProduct,
-                          onChanged: (value) =>
-                              setState(() => _selectedProduct = value),
-                          selected: selected,
-                          title: Text('${product.brand} ${product.model}'),
-                          subtitle: Text(
-                            'Numerações ${product.minimumSize} a ${product.maximumSize}'
-                            '${product.salePrice == null ? '' : ' • ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2).format(product.salePrice)}'}',
-                          ),
-                        );
-                      },
+                  ? const Center(child: Text('Nenhum produto encontrado.'))
+                  : RadioGroup<Product>(
+                      groupValue: _selectedProduct,
+                      onChanged: (value) =>
+                          setState(() => _selectedProduct = value),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: _filteredProducts.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final product = _filteredProducts[index];
+                          return RadioListTile<Product>(
+                            value: product,
+                            selected: product.id == _selectedProduct?.id,
+                            title: Text('${product.brand} ${product.model}'),
+                            subtitle: Text(
+                              'Numerações ${product.minimumSize} a ${product.maximumSize}'
+                              '${product.salePrice == null ? '' : ' • ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2).format(product.salePrice)}'}',
+                            ),
+                          );
+                        },
+                      ),
                     ),
             ),
             const Divider(height: 1),
@@ -665,10 +983,7 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                     child: FilledButton(
                       onPressed: _selectedProduct == null
                           ? null
-                          : () => Navigator.pop(
-                                context,
-                                _selectedProduct,
-                              ),
+                          : () => Navigator.pop(context, _selectedProduct),
                       child: const Text('Selecionar'),
                     ),
                   ),
@@ -680,8 +995,4 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
       ),
     );
   }
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

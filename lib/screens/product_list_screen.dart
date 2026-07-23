@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../theme/app_colors.dart';
 import '../data/product_repository.dart';
 import '../models/product.dart';
 import 'product_form_screen.dart';
@@ -44,14 +45,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _onSearchChanged() {
+    setState(() {});
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), _loadProducts);
   }
 
   Future<void> _loadProducts() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
-      final products = await _repository.findAll(search: _searchController.text);
+      final products = await _repository.findAll(
+        search: _searchController.text,
+      );
       if (!mounted) return;
       setState(() => _products = products);
     } finally {
@@ -95,6 +99,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Excluir'),
           ),
         ],
@@ -113,42 +121,46 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 76,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Produtos'),
-            SizedBox(height: 2),
-            Text(
-              'Modelos cadastrados',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Novo produto'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'Novo produto',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        shape: const StadiumBorder(),
       ),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: _searchController.clear,
-                          icon: const Icon(Icons.close),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Produtos',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AppColors.dark,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
                         ),
-                ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Modelos cadastrados',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF667085),
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                  const SizedBox(height: 18),
+                  _SearchField(controller: _searchController),
+                ],
               ),
             ),
+            const SizedBox(height: 14),
             Expanded(child: _buildContent()),
           ],
         ),
@@ -158,7 +170,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Widget _buildContent() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.dark),
+      );
     }
 
     if (_products.isEmpty) {
@@ -169,131 +183,310 @@ class _ProductListScreenState extends State<ProductListScreen> {
     }
 
     return RefreshIndicator(
+      color: AppColors.dark,
+      backgroundColor: AppColors.neon,
       onRefresh: _loadProducts,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 112),
         itemCount: _products.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final product = _products[index];
-          return Card(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () => _openForm(product),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primaryContainer,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.directions_run,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product.brand,
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            product.model,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 6,
-                            children: [
-                              _InfoChip(
-                                icon: Icons.straighten,
-                                label:
-                                    '${product.minimumSize} ao ${product.maximumSize}',
-                              ),
-                              _InfoChip(
-                                icon: Icons.payments_outlined,
-                                label: 'Custo ${_currency.format(product.costPrice)}',
-                              ),
-                              if (product.salePrice != null)
-                                _InfoChip(
-                                  icon: Icons.price_check_outlined,
-                                  label:
-                                      'Venda ${_currency.format(product.salePrice)}',
-                                ),
-                            ],
-                          ),
-                          if (product.notes?.isNotEmpty == true) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              product.notes!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: const Color(0xFF667085),
-                                  ),
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
+        itemBuilder: (context, index) => _ProductCard(
+          product: _products[index],
+          currency: _currency,
+          onTap: () => _openForm(_products[index]),
+          onEdit: () => _openForm(_products[index]),
+          onDelete: () => _confirmDelete(_products[index]),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      cursorColor: AppColors.neon,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Buscar por marca ou modelo',
+        hintStyle: const TextStyle(color: Color(0xFF9EA7B6)),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: Color(0xFFD0D5DD),
+        ),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Limpar busca',
+                onPressed: controller.clear,
+                icon: const Icon(Icons.close_rounded),
+                color: const Color(0xFFD0D5DD),
+              ),
+        filled: true,
+        fillColor: AppColors.dark,
+        contentPadding: const EdgeInsets.symmetric(vertical: 17),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF263141)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.neon, width: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({
+    required this.product,
+    required this.currency,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Product product;
+  final NumberFormat currency;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F2F5)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120D131D),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProductImage(),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.brand,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: const Color(0xFF667085),
+                              fontWeight: FontWeight.w600,
                             ),
-                          ],
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        product.model,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.dark,
+                              fontWeight: FontWeight.w800,
+                              height: 1.08,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          _InfoChip(
+                            icon: Icons.straighten_rounded,
+                            prefix: '',
+                            value:
+                                '${product.minimumSize} ao ${product.maximumSize}',
+                          ),
+                          _InfoChip(
+                            icon: Icons.account_balance_wallet_outlined,
+                            prefix: 'Custo ',
+                            value: currency.format(product.costPrice),
+                          ),
+                          if (product.salePrice != null)
+                            _InfoChip(
+                              icon: Icons.sell_outlined,
+                              prefix: 'Venda ',
+                              value: currency.format(product.salePrice),
+                              highlightValue: true,
+                            ),
+                        ],
+                      ),
+                      if (product.notes?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          product.notes!.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF667085),
+                                height: 1.35,
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Mais opções',
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    color: AppColors.dark,
+                  ),
+                  onSelected: (value) {
+                    if (value == 'edit') onEdit();
+                    if (value == 'delete') onDelete();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 20),
+                          SizedBox(width: 10),
+                          Text('Editar'),
                         ],
                       ),
                     ),
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') _openForm(product);
-                        if (value == 'delete') _confirmDelete(product);
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'edit', child: Text('Editar')),
-                        PopupMenuItem(value: 'delete', child: Text('Excluir')),
-                      ],
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            size: 20,
+                            color: Color(0xFFB42318),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Excluir',
+                            style: TextStyle(color: Color(0xFFB42318)),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductImage extends StatelessWidget {
+  const _ProductImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      height: 56,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFF253044)),
+      ),
+      child: Image.asset(
+        'assets/images/tenis_neon4.png',
+        width: 48,
+          height: 48,
+          fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.inventory_2_outlined,
+          color: AppColors.neon,
+          size: 32,
+        ),
       ),
     );
   }
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.icon, required this.label});
+  const _InfoChip({
+    required this.icon,
+    required this.prefix,
+    required this.value,
+    this.highlightValue = false,
+  });
 
   final IconData icon;
-  final String label;
+  final String prefix;
+  final String value;
+  final bool highlightValue;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F4F8),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: AppColors.dark,
+          width: 1.6,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF475467)),
+          Icon(icon, size: 15, color: AppColors.dark),
           const SizedBox(width: 5),
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          RichText(
+            text: TextSpan(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.dark,
+                    fontWeight: FontWeight.w600,
+                  ),
+              children: [
+                TextSpan(text: prefix),
+                TextSpan(
+                  text: value,
+                  style: TextStyle(
+                    color: highlightValue
+                        ? const Color(0xFF8FB500)
+                        : AppColors.dark,
+                    fontWeight:
+                        highlightValue ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -314,19 +507,30 @@ class _EmptyProducts extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isSearching ? Icons.search_off : Icons.directions_run_outlined,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: AppColors.dark,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(
+                isSearching
+                    ? Icons.search_off_rounded
+                    : Icons.directions_run_rounded,
+                size: 44,
+                color: AppColors.neon,
+              ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             Text(
               isSearching
                   ? 'Nenhum produto encontrado'
                   : 'Nenhum produto cadastrado',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.dark,
+                    fontWeight: FontWeight.w800,
                   ),
             ),
             const SizedBox(height: 8),
@@ -337,13 +541,14 @@ class _EmptyProducts extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: const Color(0xFF667085),
+                    height: 1.4,
                   ),
             ),
             if (!isSearching) ...[
               const SizedBox(height: 22),
               FilledButton.icon(
                 onPressed: onAdd,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add_rounded),
                 label: const Text('Cadastrar primeiro produto'),
               ),
             ],
