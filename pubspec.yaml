@@ -1,0 +1,42 @@
+name: myshoes
+description: Aplicativo Android offline para organização de pedidos de calçados.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  intl: ^0.20.2
+  path: ^1.9.1
+  sqflite: ^2.4.2
+  flutter_contacts: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/myshoes_logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/images/myshoes_logo.png
+  adaptive_icon_background: "#07111F"
+  adaptive_icon_foreground: assets/images/myshoes_logo.png
+
+flutter_native_splash:
+  color: "#07111F"
+  image: assets/images/myshoes_logo.png
+  android_12:
+    color: "#07111F"
+    image: assets/images/myshoes_logo.png
