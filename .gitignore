@@ -6,3 +6,20 @@ build/
 .flutter-plugins
 
 .flutter-plugins-dependencies
+
+
+# Flutter
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+
+# Android Studio
+android/.gradle/
+
+# Dart
+.packages
