@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../pages/orders/order_list_page.dart';
+import '../pages/production/production_batch_page.dart';
 import 'product_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -13,11 +14,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  int _factoryRefreshToken = 0;
 
-  static const _pages = [
-    ProductListScreen(),
-    OrderListPage(),
-  ];
+  List<Widget> get _pages => [
+        const ProductListScreen(),
+        const OrderListPage(),
+        ProductionBatchPage(refreshToken: _factoryRefreshToken),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +45,12 @@ class _HomeScreenState extends State<HomeScreen> {
           child: NavigationBar(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
-              setState(() => _selectedIndex = index);
+              setState(() {
+                _selectedIndex = index;
+                if (index == 2) {
+                  _factoryRefreshToken++;
+                }
+              });
             },
             destinations: [
               _destination(
@@ -56,6 +64,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.receipt_long_outlined,
                 selectedIcon: Icons.receipt_long,
                 label: 'Pedidos',
+              ),
+              _destination(
+                index: 2,
+                icon: Icons.factory_outlined,
+                selectedIcon: Icons.factory,
+                label: 'Fábrica',
               ),
             ],
           ),

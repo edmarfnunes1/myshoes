@@ -21,6 +21,8 @@ class OrderListPage extends StatefulWidget {
   State<OrderListPage> createState() => _OrderListPageState();
 }
 
+enum _OrdersSection { ongoing, production }
+
 class _OrderListPageState extends State<OrderListPage> {
   late final OrderRepository _repository;
   final _searchController = TextEditingController();
@@ -32,6 +34,8 @@ class _OrderListPageState extends State<OrderListPage> {
   );
   Timer? _debounce;
   List<Order> _orders = const [];
+  List<Order> _allOrders = const [];
+  _OrdersSection _section = _OrdersSection.ongoing;
   bool _loading = true;
 
   @override
@@ -50,10 +54,15 @@ class _OrderListPageState extends State<OrderListPage> {
 
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
-    final orders = await _repository.findAll(search: _searchController.text);
+    final search = _searchController.text;
+    final results = await Future.wait([
+      _repository.findAll(search: search),
+      if (search.trim().isNotEmpty) _repository.findAll() else Future.value(<Order>[]),
+    ]);
     if (mounted) {
       setState(() {
-        _orders = orders;
+        _orders = results.first;
+        _allOrders = search.trim().isEmpty ? results.first : results.last;
         _loading = false;
       });
     }
@@ -75,6 +84,13 @@ class _OrderListPageState extends State<OrderListPage> {
   }
 
   Future<void> _open([Order? order]) async {
+    if (order?.isInProductionBatch == true) {
+      _showLockedOrderMessage(
+        'Este pedido já foi enviado para a fábrica e não pode ser editado.',
+      );
+      return;
+    }
+
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -99,6 +115,13 @@ class _OrderListPageState extends State<OrderListPage> {
   }
 
   Future<void> _delete(Order order) async {
+    if (order.isInProductionBatch) {
+      _showLockedOrderMessage(
+        'Este pedido já foi enviado para a fábrica e não pode ser excluído.',
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -122,6 +145,17 @@ class _OrderListPageState extends State<OrderListPage> {
       await _repository.delete(order.id!);
       await _load();
     }
+  }
+
+
+  void _showLockedOrderMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -192,6 +226,8 @@ class _OrderListPageState extends State<OrderListPage> {
                 ),
               ),
             ),
+            _sectionSelector(),
+            const SizedBox(height: 8),
             Expanded(child: _content()),
           ],
         ),
@@ -199,10 +235,94 @@ class _OrderListPageState extends State<OrderListPage> {
     );
   }
 
+  Widget _sectionSelector() {
+    final ongoingCount = _allOrders.where((order) => !order.isInProductionBatch).length;
+    final productionCount = _allOrders.where((order) => order.isInProductionBatch).length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8E8E8),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _sectionButton(
+                section: _OrdersSection.ongoing,
+                label: 'Em andamento ($ongoingCount)',
+                icon: Icons.pending_actions_outlined,
+              ),
+            ),
+            Expanded(
+              child: _sectionButton(
+                section: _OrdersSection.production,
+                label: 'Produção ($productionCount)',
+                icon: Icons.factory_outlined,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionButton({
+    required _OrdersSection section,
+    required String label,
+    required IconData icon,
+  }) {
+    final selected = _section == section;
+    return Material(
+      color: selected ? const Color(0xFF0D131D) : Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        key: ValueKey('orders-section-${section.name}'),
+        borderRadius: BorderRadius.circular(11),
+        onTap: () => setState(() => _section = section),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: selected ? const Color(0xFFCCFF00) : const Color(0xFF4B5563),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? Colors.white : const Color(0xFF202733),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Order> get _sectionOrders => _orders.where((order) {
+        return _section == _OrdersSection.production
+            ? order.isInProductionBatch
+            : !order.isInProductionBatch;
+      }).toList();
+
   Widget _content() {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    if (_orders.isEmpty) {
+    final sectionOrders = _sectionOrders;
+    if (sectionOrders.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -212,13 +332,16 @@ class _OrderListPageState extends State<OrderListPage> {
               const Icon(Icons.receipt_long_outlined, size: 64),
               const SizedBox(height: 16),
               Text(
-                _searchController.text.isEmpty
-                    ? 'Nenhum pedido cadastrado.'
-                    : 'Nenhum pedido encontrado.',
+                _searchController.text.isNotEmpty
+                    ? 'Nenhum pedido encontrado nesta seção.'
+                    : _section == _OrdersSection.ongoing
+                        ? 'Nenhum pedido em andamento.'
+                        : 'Nenhum pedido enviado para produção.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              if (_searchController.text.isEmpty)
+              if (_searchController.text.isEmpty &&
+                  _section == _OrdersSection.ongoing)
                 FilledButton.icon(
                   onPressed: () => _open(),
                   icon: const Icon(Icons.add),
@@ -234,9 +357,9 @@ class _OrderListPageState extends State<OrderListPage> {
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
-        itemCount: _orders.length,
+        itemCount: sectionOrders.length,
         separatorBuilder: (_, __) => const SizedBox(height: 16),
-        itemBuilder: (_, index) => _orderCard(_orders[index]),
+        itemBuilder: (_, index) => _orderCard(sectionOrders[index]),
       ),
     );
   }
@@ -307,14 +430,37 @@ class _OrderListPageState extends State<OrderListPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                order.id == null
-                    ? 'Pedido'
-                    : 'Pedido #${order.id!.toString().padLeft(4, '0')}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF0D131D),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      order.id == null
+                          ? 'Pedido'
+                          : 'Pedido #${order.id!.toString().padLeft(4, '0')}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0D131D),
+                      ),
+                    ),
+                  ),
+                  if (order.productionBatchId != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8E8E8),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Lote #${order.productionBatchId!.toString().padLeft(4, '0')}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: const Color(0xFF303846),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 7),
               Container(
@@ -354,17 +500,32 @@ class _OrderListPageState extends State<OrderListPage> {
               ),
             ),
             const SizedBox(height: 2),
-            PopupMenuButton<String>(
-              tooltip: 'Opções do pedido',
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.more_horiz, color: Color(0xFF5C6675)),
-              onSelected: (value) =>
-                  value == 'edit' ? _open(order) : _delete(order),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Editar')),
-                PopupMenuItem(value: 'delete', child: Text('Excluir')),
-              ],
-            ),
+            if (order.isInProductionBatch)
+              IconButton(
+                tooltip: 'Pedido bloqueado: enviado para a fábrica',
+                onPressed: () => _showLockedOrderMessage(
+                  'Este pedido já foi enviado para a fábrica e não pode ser editado ou excluído.',
+                ),
+                icon: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Color(0xFF5C6675),
+                ),
+              )
+            else
+              PopupMenuButton<String>(
+                tooltip: 'Opções do pedido',
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.more_horiz,
+                  color: Color(0xFF5C6675),
+                ),
+                onSelected: (value) =>
+                    value == 'edit' ? _open(order) : _delete(order),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Editar')),
+                  PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                ],
+              ),
           ],
         ),
       ],
@@ -390,6 +551,7 @@ class _OrderListPageState extends State<OrderListPage> {
                 if (item.color?.trim().isNotEmpty == true)
                   'Cor: ${item.color!.trim()}',
                 'Qtd. ${item.quantity}',
+                item.withBox ? 'C.Caixa' : 'S.Caixa',
               ].join(' · '),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -409,98 +571,84 @@ class _OrderListPageState extends State<OrderListPage> {
     ThemeData theme,
     String status,
   ) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 360;
+    return Row(
+      children: [
+        Expanded(
+          child: _footerPill(
+            theme: theme,
+            label: 'Pagamento',
+            value: status,
+            icon: _statusIcon(status),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: _footerPill(
+            theme: theme,
+            label: 'Pagamento total',
+            value: _currency.format(order.totalValue),
+          ),
+        ),
+      ],
+    );
+  }
 
-        return Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 10 : 13,
-                  vertical: compact ? 11 : 13,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCCFF00),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _statusIcon(status),
-                      size: 19,
-                      color: const Color(0xFF18733A),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Status',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: const Color(0xFF303820),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            status,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: const Color(0xFF0D131D),
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+  Widget _footerPill({
+    required ThemeData theme,
+    required String label,
+    required String value,
+    IconData? icon,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFCCFF00),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 16,
+              color: const Color(0xFF18733A),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 10 : 13,
-                  vertical: compact ? 11 : 13,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCCFF00),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Pagamento total',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF303820),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _currency.format(order.totalValue),
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: const Color(0xFF0D131D),
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(width: 5),
           ],
-        );
-      },
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: const Color(0xFF303820),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: const Color(0xFF0D131D),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

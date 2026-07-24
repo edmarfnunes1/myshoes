@@ -33,14 +33,27 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _notesController = TextEditingController();
 
   static const _popularBrands = <String>[
-    'Nike',
-    'Adidas',
-    'Puma',
-    'New Balance',
-    'Vans',
-    'Lacoste',
-    'Oakley',
-  ];
+  'Nike',
+  'Adidas',
+  'Puma',
+  'New Balance',
+  'Vans',
+  'Lacoste',
+  'Oakley',
+  'Converse',
+  'Asics',
+  'Fila',
+  'Reebok',
+  'Under Armour',
+  'Mizuno',
+  'Olympikus',
+  'Skechers',
+  'Jordan',
+  'Vert (Veja)',
+  'Timberland',
+  'DC Shoes',
+  'Balenciaga',
+];
 
   List<String> _availableBrands = _popularBrands;
   bool _saving = false;

@@ -19,7 +19,14 @@ class OrderRepository {
 
     final rows = await database.rawQuery(
       '''
-      SELECT DISTINCT o.*
+      SELECT DISTINCT o.*,
+             (
+               SELECT pbo.batch_id
+               FROM production_batch_orders pbo
+               WHERE pbo.order_id = o.id
+               ORDER BY pbo.batch_id DESC
+               LIMIT 1
+             ) AS production_batch_id
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN products p ON p.id = oi.product_id
@@ -56,11 +63,21 @@ class OrderRepository {
 
   Future<Order?> findById(int id) async {
     final database = await _database.database;
-    final rows = await database.query(
-      'orders',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
+    final rows = await database.rawQuery(
+      '''
+      SELECT o.*,
+             (
+               SELECT pbo.batch_id
+               FROM production_batch_orders pbo
+               WHERE pbo.order_id = o.id
+               ORDER BY pbo.batch_id DESC
+               LIMIT 1
+             ) AS production_batch_id
+      FROM orders o
+      WHERE o.id = ?
+      LIMIT 1
+      ''',
+      [id],
     );
     if (rows.isEmpty) return null;
     final items = await _findItems(database, id);
@@ -84,6 +101,12 @@ class OrderRepository {
   Future<void> save(Order order) async {
     final database = await _database.database;
     await database.transaction((transaction) async {
+      if (order.id != null &&
+          await _isInProductionBatch(transaction, order.id!)) {
+        throw StateError(
+          'Este pedido já foi enviado para a fábrica e não pode ser editado.',
+        );
+      }
       final values = order.toMap()..remove('id');
       late final int orderId;
 
@@ -115,6 +138,29 @@ class OrderRepository {
 
   Future<void> delete(int id) async {
     final database = await _database.database;
-    await database.delete('orders', where: 'id = ?', whereArgs: [id]);
+    await database.transaction((transaction) async {
+      if (await _isInProductionBatch(transaction, id)) {
+        throw StateError(
+          'Este pedido já foi enviado para a fábrica e não pode ser excluído.',
+        );
+      }
+      await transaction.delete('orders', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  Future<bool> _isInProductionBatch(
+    DatabaseExecutor database,
+    int orderId,
+  ) async {
+    final rows = await database.rawQuery(
+      '''
+      SELECT 1
+      FROM production_batch_orders
+      WHERE order_id = ?
+      LIMIT 1
+      ''',
+      [orderId],
+    );
+    return rows.isNotEmpty;
   }
 }

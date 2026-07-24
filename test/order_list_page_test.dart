@@ -45,6 +45,8 @@ void main() {
     String? paymentStatus = 'Pendente',
     String? color = 'Preto',
     DateTime? createdAt,
+    bool withBox = false,
+    int? productionBatchId,
   }) =>
       Order(
         id: id,
@@ -59,11 +61,12 @@ void main() {
             shoeSize: 38,
             color: color,
             quantity: 2,
-            withBox: false,
+            withBox: withBox,
             unitPrice: 150,
             productName: 'Nike Air Max',
           ),
         ],
+        productionBatchId: productionBatchId,
       );
 
   Future<void> pumpPage(
@@ -91,7 +94,7 @@ void main() {
     await pumpPage(tester, repository: FakeOrderRepository());
 
     expect(find.text('Pedidos'), findsOneWidget);
-    expect(find.text('Nenhum pedido cadastrado.'), findsOneWidget);
+    expect(find.text('Nenhum pedido em andamento.'), findsOneWidget);
     expect(find.text('Cadastrar pedido'), findsOneWidget);
     expect(find.text('Novo pedido'), findsOneWidget);
   });
@@ -107,13 +110,13 @@ void main() {
     expect(find.text('23/07/2026'), findsOneWidget);
     expect(find.text('ANA PAULA'), findsOneWidget);
     expect(
-      find.text('Nike Air Max · Nº 38 · Cor: Preto · Qtd. 2'),
+      find.text('Nike Air Max · Nº 38 · Cor: Preto · Qtd. 2 · S.Caixa'),
       findsOneWidget,
     );
     expect(find.text('2 produto(s)'), findsOneWidget);
+    expect(find.text('Pagamento'), findsOneWidget);
     expect(find.text('Pagamento total'), findsOneWidget);
     expect(find.text('R\$\u00a0300,00'), findsOneWidget);
-    expect(find.text('Status'), findsOneWidget);
     expect(find.text('Pendente'), findsOneWidget);
   });
 
@@ -126,17 +129,104 @@ void main() {
       ),
     );
 
-    expect(find.text('Nike Air Max · Nº 38 · Qtd. 2'), findsOneWidget);
+    expect(find.text('Nike Air Max · Nº 38 · Qtd. 2 · S.Caixa'), findsOneWidget);
     expect(find.textContaining('Cor:'), findsNothing);
+  });
+
+
+  testWidgets('exibe C.Caixa quando o item possui caixa', (tester) async {
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(
+        orders: [sampleOrder(withBox: true)],
+      ),
+    );
+
+    expect(
+      find.text('Nike Air Max · Nº 38 · Cor: Preto · Qtd. 2 · C.Caixa'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('S.Caixa'), findsNothing);
+  });
+
+  testWidgets('exibe status Em lote e ícone de bloqueio', (tester) async {
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(
+        orders: [sampleOrder(productionBatchId: 12)],
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lote #0012'), findsOneWidget);
+    expect(
+      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
+      findsOneWidget,
+    );
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+  });
+
+  testWidgets('pedido em lote não abre formulário para edição', (tester) async {
+    var formOpened = false;
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(
+        orders: [sampleOrder(id: 9, productionBatchId: 4)],
+      ),
+      formPageBuilder: (_) {
+        formOpened = true;
+        return const Scaffold(body: Text('Edição indevida'));
+      },
+    );
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pedido #0009'));
+    await tester.pumpAndSettle();
+
+    expect(formOpened, isFalse);
+    expect(find.text('Edição indevida'), findsNothing);
+    expect(
+      find.text(
+        'Este pedido já foi enviado para a fábrica e não pode ser editado.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('cadeado informa que pedido em lote não pode ser alterado',
+      (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [sampleOrder(productionBatchId: 3)],
+    );
+    await pumpPage(tester, repository: repository);
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.deletedId, isNull);
+    expect(
+      find.text(
+        'Este pedido já foi enviado para a fábrica e não pode ser editado ou excluído.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('normaliza status vazio para Pendente', (tester) async {
     await pumpPage(
       tester,
       repository: FakeOrderRepository(
-        orders: [sampleOrder(paymentStatus: '  ')],
+        orders: [sampleOrder(paymentStatus: '  ', productionBatchId: 7)],
       ),
     );
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
 
     expect(find.text('Pendente'), findsOneWidget);
   });
@@ -181,7 +271,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nenhum pedido encontrado.'), findsOneWidget);
+    expect(find.text('Nenhum pedido encontrado nesta seção.'), findsOneWidget);
     expect(find.text('Cadastrar pedido'), findsNothing);
   });
 
@@ -197,6 +287,144 @@ void main() {
 
     expect(find.byTooltip('Limpar pesquisa'), findsNothing);
     expect(find.text('ANA PAULA'), findsOneWidget);
+  });
+
+  testWidgets('exibe contadores das seções e abre Em andamento por padrão',
+      (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [
+        sampleOrder(id: 1, customerName: 'Ana'),
+        sampleOrder(id: 2, customerName: 'Bruno'),
+        sampleOrder(
+          id: 3,
+          customerName: 'Carla',
+          productionBatchId: 7,
+        ),
+      ],
+    );
+
+    await pumpPage(tester, repository: repository);
+
+    expect(find.text('Em andamento (2)'), findsOneWidget);
+    expect(find.text('Produção (1)'), findsOneWidget);
+    expect(find.text('ANA'), findsOneWidget);
+    expect(find.text('BRUNO'), findsOneWidget);
+    expect(find.text('CARLA'), findsNothing);
+  });
+
+  testWidgets('aba Produção mostra apenas pedidos em lote e identifica o lote',
+      (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [
+        sampleOrder(id: 1, customerName: 'Ana'),
+        sampleOrder(
+          id: 2,
+          customerName: 'Bruno',
+          productionBatchId: 12,
+        ),
+      ],
+    );
+
+    await pumpPage(tester, repository: repository);
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('BRUNO'), findsOneWidget);
+    expect(find.text('Lote #0012'), findsOneWidget);
+    expect(find.text('ANA'), findsNothing);
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(
+      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('volta para Em andamento mantendo a separação dos pedidos',
+      (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [
+        sampleOrder(id: 1, customerName: 'Ana'),
+        sampleOrder(
+          id: 2,
+          customerName: 'Bruno',
+          productionBatchId: 3,
+        ),
+      ],
+    );
+
+    await pumpPage(tester, repository: repository);
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('orders-section-ongoing')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ANA'), findsOneWidget);
+    expect(find.text('BRUNO'), findsNothing);
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
+  });
+
+  testWidgets('exibe estado vazio específico na aba Produção', (tester) async {
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(orders: [sampleOrder()]),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nenhum pedido enviado para produção.'), findsOneWidget);
+    expect(find.text('Cadastrar pedido'), findsNothing);
+  });
+
+  testWidgets('busca filtra somente os pedidos da seção ativa', (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [
+        sampleOrder(id: 1, customerName: 'Ana Produção'),
+        sampleOrder(
+          id: 2,
+          customerName: 'Ana Fábrica',
+          productionBatchId: 4,
+        ),
+        sampleOrder(
+          id: 3,
+          customerName: 'Bruno Fábrica',
+          productionBatchId: 5,
+        ),
+      ],
+    );
+
+    await pumpPage(tester, repository: repository);
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Ana');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ANA FÁBRICA'), findsOneWidget);
+    expect(find.text('ANA PRODUÇÃO'), findsNothing);
+    expect(find.text('BRUNO FÁBRICA'), findsNothing);
+    expect(find.text('Em andamento (1)'), findsOneWidget);
+    expect(find.text('Produção (2)'), findsOneWidget);
+  });
+
+  testWidgets('busca sem resultado usa mensagem da seção ativa',
+      (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [sampleOrder(productionBatchId: 8)],
+    );
+
+    await pumpPage(tester, repository: repository);
+    await tester.tap(find.byKey(const ValueKey('orders-section-production')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Inexistente');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Nenhum pedido encontrado nesta seção.'),
+      findsOneWidget,
+    );
+    expect(find.text('Cadastrar pedido'), findsNothing);
   });
 
   testWidgets('abre formulário de novo lançamento pelo botão', (tester) async {
@@ -262,6 +490,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.deletedId, 1);
-    expect(find.text('Nenhum pedido cadastrado.'), findsOneWidget);
+    expect(find.text('Nenhum pedido em andamento.'), findsOneWidget);
   });
 }

@@ -1,33 +1,29 @@
-# Flutter/Dart
+# Flutter
 .dart_tool/
-.packages
-.pub/
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-
-# Generated files
-coverage/
 
 # Android
 android/.gradle/
 android/local.properties
 
-# iOS
-ios/Pods/
-ios/.symlinks/
-
-# IDEs
+# IDE
 .idea/
 .vscode/
-*.iml
 
-# Logs
-*.log
+# Android / Gradle / Kotlin
+android/.gradle/
+android/.kotlin/
+android/local.properties
 
-# macOS
-.DS_Store
+# Flutter
+.dart_tool/
+build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
 
-# Windows
-Thumbs.db
-Desktop.ini
+# IDE
+.idea/
+.vscode/

@@ -9,6 +9,7 @@ class Order {
     this.paymentStatus,
     this.notes,
     this.createdAt,
+    this.productionBatchId,
   });
 
   final int? id;
@@ -18,6 +19,9 @@ class Order {
   final String? paymentStatus;
   final String? notes;
   final DateTime? createdAt;
+  final int? productionBatchId;
+
+  bool get isInProductionBatch => productionBatchId != null;
 
   double get totalValue => items.fold(0, (sum, item) => sum + item.total);
   int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
@@ -52,6 +56,7 @@ class Order {
       paymentStatus: map['payment_status'] as String?,
       notes: map['notes'] as String?,
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? ''),
+      productionBatchId: map['production_batch_id'] as int?,
     );
   }
 }

@@ -65,6 +65,7 @@ void main() {
           'payment_status': 'Parcial',
           'notes': null,
           'created_at': '2026-07-22',
+          'production_batch_id': 8,
         },
         items: items,
       );
@@ -74,6 +75,28 @@ void main() {
       expect(order.paymentStatus, 'Parcial');
       expect(order.createdAt, DateTime(2026, 7, 22));
       expect(order.items, same(items));
+      expect(order.productionBatchId, 8);
+      expect(order.isInProductionBatch, isTrue);
+    });
+
+
+    test('identifica pedido vinculado a lote de produção', () {
+      const order = Order(
+        customerName: 'Ana',
+        items: [],
+        productionBatchId: 5,
+      );
+
+      expect(order.isInProductionBatch, isTrue);
+    });
+
+    test('identifica pedido ainda não enviado para a fábrica', () {
+      const order = Order(
+        customerName: 'Ana',
+        items: [],
+      );
+
+      expect(order.isInProductionBatch, isFalse);
     });
 
     test('fromMap tolera data inválida', () {

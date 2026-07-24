@@ -1,6 +1,7 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+
 class AppDatabase {
   AppDatabase._();
 
@@ -19,7 +20,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onConfigure: (database) async {
         await database.execute('PRAGMA foreign_keys = ON');
       },
@@ -28,6 +29,7 @@ class AppDatabase {
         await _createCustomersTable(database);
         await _createOrdersTable(database);
         await _createOrderItemsTable(database);
+        await _createProductionBatchTables(database);
       },
       onUpgrade: (database, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -51,6 +53,9 @@ class AppDatabase {
           await database.execute(
             "UPDATE orders SET created_at = substr(created_at, 1, 10)",
           );
+        }
+        if (oldVersion < 8) {
+          await _createProductionBatchTables(database);
         }
       },
     );
@@ -201,5 +206,26 @@ class AppDatabase {
 
       await transaction.execute('DROP TABLE orders_old');
     });
+  }
+
+  Future<void> _createProductionBatchTables(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS production_batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS production_batch_orders (
+        batch_id INTEGER NOT NULL,
+        order_id INTEGER NOT NULL UNIQUE,
+        PRIMARY KEY (batch_id, order_id),
+        FOREIGN KEY (batch_id) REFERENCES production_batches(id) ON DELETE CASCADE,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE RESTRICT
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_batch_orders_batch_id ON production_batch_orders(batch_id)',
+    );
   }
 }
