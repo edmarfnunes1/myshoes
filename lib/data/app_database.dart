@@ -19,7 +19,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 7,
       onConfigure: (database) async {
         await database.execute('PRAGMA foreign_keys = ON');
       },
@@ -41,6 +41,16 @@ class AppDatabase {
         }
         if (oldVersion < 5) {
           await _migrateOrdersToItems(database);
+        }
+        if (oldVersion < 6) {
+          await database.execute(
+            'ALTER TABLE order_items ADD COLUMN color TEXT',
+          );
+        }
+        if (oldVersion < 7) {
+          await database.execute(
+            "UPDATE orders SET created_at = substr(created_at, 1, 10)",
+          );
         }
       },
     );
@@ -79,6 +89,7 @@ class AppDatabase {
         customer_id INTEGER,
         product_id INTEGER NOT NULL,
         shoe_size INTEGER NOT NULL,
+        color TEXT,
         quantity INTEGER NOT NULL,
         with_box INTEGER NOT NULL DEFAULT 0,
         sale_value REAL NOT NULL,
@@ -109,6 +120,7 @@ class AppDatabase {
         order_id INTEGER NOT NULL,
         product_id INTEGER NOT NULL,
         shoe_size INTEGER NOT NULL,
+        color TEXT,
         quantity INTEGER NOT NULL,
         with_box INTEGER NOT NULL DEFAULT 0,
         unit_price REAL NOT NULL,

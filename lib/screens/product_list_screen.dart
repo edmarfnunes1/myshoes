@@ -123,12 +123,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(
+            color: Colors.black,
+            width: 0.5,
+          ),
+        ),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Novo produto',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        shape: const StadiumBorder(),
+       
       ),
       body: SafeArea(
         bottom: false,
@@ -452,13 +459,13 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: AppColors.dark,
-          width: 1.6,
+          width: 0.9,
         ),
       ),
       child: Row(

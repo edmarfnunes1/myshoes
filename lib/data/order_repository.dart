@@ -13,6 +13,9 @@ class OrderRepository {
   Future<List<Order>> findAll({String search = ''}) async {
     final database = await _database.database;
     final normalized = search.trim().toLowerCase();
+    final idSearch = normalized.startsWith('#')
+        ? normalized.substring(1).trim()
+        : normalized;
 
     final rows = await database.rawQuery(
       '''
@@ -24,12 +27,22 @@ class OrderRepository {
       WHERE LOWER(o.customer_name) LIKE ?
          OR LOWER(COALESCE(o.customer_phone, '')) LIKE ?
          OR LOWER(COALESCE(p.brand || ' ' || p.model, '')) LIKE ?
+         OR LOWER(COALESCE(oi.color, '')) LIKE ?
+         OR CAST(o.id AS TEXT) = ?
+         OR strftime('%d/%m/%Y', o.created_at) LIKE ?
       '''}
-      ORDER BY o.created_at DESC, o.id DESC
+      ORDER BY o.created_at DESC, o.customer_name COLLATE NOCASE ASC, o.id DESC
       ''',
       normalized.isEmpty
           ? null
-          : ['%$normalized%', '%$normalized%', '%$normalized%'],
+          : [
+              '%$normalized%',
+              '%$normalized%',
+              '%$normalized%',
+              '%$normalized%',
+              idSearch,
+              '%$normalized%',
+            ],
     );
 
     final orders = <Order>[];

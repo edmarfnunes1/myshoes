@@ -37,7 +37,10 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#07111F"
-  image: assets/images/myshoes_logo.png
+  android: true
+  ios: true
+  web: false
+  fullscreen: true
+
   android_12:
     color: "#07111F"
-    image: assets/images/myshoes_logo.png

@@ -69,7 +69,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> addProduct(WidgetTester tester) async {
+  Future<void> addProduct(
+    WidgetTester tester, {
+    String? color,
+  }) async {
     await tester.tap(find.text('Adicionar produto'));
     await tester.pumpAndSettle();
 
@@ -84,6 +87,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('39').last);
     await tester.pumpAndSettle();
+
+    if (color != null) {
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Cor'),
+        color,
+      );
+    }
 
     await tester.tap(find.text('Adicionar'));
     await tester.pumpAndSettle();
@@ -177,11 +187,11 @@ void main() {
       expect(find.text('R\$ 350,00'), findsWidgets);
     });
 
-    testWidgets('salva lançamento com cliente, item e observações',
+    testWidgets('salva lançamento com cliente, item, cor e observações',
         (tester) async {
       final repository = FakeOrderRepository();
       await pumpPage(tester, orderRepository: repository);
-      await addProduct(tester);
+      await addProduct(tester, color: '  Azul Marinho  ');
 
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Nome *'),
@@ -207,7 +217,24 @@ void main() {
       expect(repository.savedOrder?.items, hasLength(1));
       expect(repository.savedOrder?.items.first.productId, 1);
       expect(repository.savedOrder?.items.first.shoeSize, 39);
+      expect(repository.savedOrder?.items.first.color, 'Azul Marinho');
       expect(repository.savedOrder?.items.first.unitPrice, 350);
+    });
+
+    testWidgets('permite adicionar produto sem informar cor', (tester) async {
+      final repository = FakeOrderRepository();
+      await pumpPage(tester, orderRepository: repository);
+      await addProduct(tester);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nome *'),
+        'Cliente sem cor',
+      );
+
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pumpAndSettle();
+
+      expect(repository.savedOrder?.items.single.color, isNull);
     });
 
     testWidgets('exibe erro quando o repositório falha ao salvar',

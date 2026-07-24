@@ -25,4 +25,30 @@ void main() {
     expect(result.salePrice, 120);
     expect(result.notes, 'Teste');
   });
+
+
+  test('copyWith altera campos e permite limpar valores opcionais', () {
+    const product = Product(
+      id: 1,
+      brand: 'Nike',
+      model: 'Air Max',
+      minimumSize: 34,
+      maximumSize: 44,
+      costPrice: 100,
+      salePrice: 200,
+      notes: 'Original',
+    );
+
+    final changed = product.copyWith(
+      model: 'Air Max Plus',
+      clearSalePrice: true,
+      clearNotes: true,
+    );
+
+    expect(changed.id, 1);
+    expect(changed.brand, 'Nike');
+    expect(changed.model, 'Air Max Plus');
+    expect(changed.salePrice, isNull);
+    expect(changed.notes, isNull);
+  });
 }

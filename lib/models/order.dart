@@ -28,8 +28,17 @@ class Order {
         'customer_phone': customerPhone,
         'payment_status': paymentStatus,
         'notes': notes,
-        'created_at': (createdAt ?? DateTime.now()).toIso8601String(),
+        'created_at': _dateOnly(createdAt ?? DateTime.now()),
       };
+
+
+
+  static String _dateOnly(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
 
   factory Order.fromMap(
     Map<String, Object?> map, {

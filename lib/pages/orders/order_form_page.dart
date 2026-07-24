@@ -129,6 +129,8 @@ class _OrderFormPageState extends State<OrderFormPage> {
       (current) =>
           current.productId == item.productId &&
           current.shoeSize == item.shoeSize &&
+          (current.color ?? '').trim().toLowerCase() ==
+              (item.color ?? '').trim().toLowerCase() &&
           current.withBox == item.withBox &&
           (current.unitPrice - item.unitPrice).abs() < 0.001,
     );
@@ -545,6 +547,8 @@ class _OrderItemCard extends StatelessWidget {
                         runSpacing: 6,
                         children: [
                           _InfoChip(label: 'Nº ${item.shoeSize}'),
+                          if (item.color?.trim().isNotEmpty == true)
+                            _InfoChip(label: 'Cor: ${item.color!.trim()}'),
                           _InfoChip(label: 'Qtd. ${item.quantity}'),
                           _InfoChip(
                             label: item.withBox ? 'Com caixa' : 'Sem caixa',
@@ -622,6 +626,7 @@ class _OrderItemSheet extends StatefulWidget {
 class _OrderItemSheetState extends State<_OrderItemSheet> {
   final _formKey = GlobalKey<FormState>();
   final _valueController = TextEditingController();
+  final _colorController = TextEditingController();
   int? _shoeSize;
   int _quantity = 1;
   bool _withBox = false;
@@ -631,6 +636,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
     super.initState();
     final item = widget.initialItem;
     _shoeSize = item?.shoeSize;
+    _colorController.text = item?.color ?? '';
     _quantity = item?.quantity ?? 1;
     _withBox = item?.withBox ?? false;
     final value = item?.unitPrice ?? widget.product.salePrice;
@@ -659,6 +665,9 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
       OrderItem(
         productId: widget.product.id!,
         shoeSize: _shoeSize!,
+        color: _colorController.text.trim().isEmpty
+            ? null
+            : _colorController.text.trim(),
         quantity: _quantity,
         withBox: _withBox,
         unitPrice: CurrencyInputFormatter.parse(_valueController.text)!,
@@ -670,6 +679,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
   @override
   void dispose() {
     _valueController.dispose();
+    _colorController.dispose();
     super.dispose();
   }
 
@@ -814,6 +824,16 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _colorController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Cor',
+                  prefixIcon: Icon(Icons.palette_outlined),
+                ),
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 16),
               TextFormField(

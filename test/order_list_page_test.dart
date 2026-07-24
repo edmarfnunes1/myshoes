@@ -18,11 +18,17 @@ class FakeOrderRepository extends OrderRepository {
     searches.add(search);
     final normalized = search.trim().toLowerCase();
     if (normalized.isEmpty) return orders;
-    return orders
-        .where(
-          (order) => order.customerName.toLowerCase().contains(normalized),
-        )
-        .toList();
+    return orders.where((order) {
+      final id = order.id?.toString() ?? '';
+      final date = order.createdAt == null
+          ? ''
+          : '${order.createdAt!.day.toString().padLeft(2, '0')}/'
+              '${order.createdAt!.month.toString().padLeft(2, '0')}/'
+              '${order.createdAt!.year}';
+      return order.customerName.toLowerCase().contains(normalized) ||
+          id.contains(normalized.replaceAll('#', '')) ||
+          date.contains(normalized);
+    }).toList();
   }
 
   @override
@@ -33,17 +39,25 @@ class FakeOrderRepository extends OrderRepository {
 }
 
 void main() {
-  Order sampleOrder({int id = 1, String customerName = 'Ana Paula'}) => Order(
+  Order sampleOrder({
+    int id = 1,
+    String customerName = 'Ana Paula',
+    String? paymentStatus = 'Pendente',
+    String? color = 'Preto',
+    DateTime? createdAt,
+  }) =>
+      Order(
         id: id,
         customerName: customerName,
         customerPhone: '44999990000',
-        paymentStatus: 'Pendente',
+        paymentStatus: paymentStatus,
         notes: 'Entregar no centro',
-        createdAt: DateTime(2026, 7, 23),
-        items: const [
+        createdAt: createdAt ?? DateTime(2026, 7, 23),
+        items: [
           OrderItem(
             productId: 1,
             shoeSize: 38,
+            color: color,
             quantity: 2,
             withBox: false,
             unitPrice: 150,
@@ -82,19 +96,49 @@ void main() {
     expect(find.text('Novo pedido'), findsOneWidget);
   });
 
-  testWidgets('exibe dados resumidos do lançamento', (tester) async {
+  testWidgets('exibe ID, data, cor, quantidade, total e status no card',
+      (tester) async {
     await pumpPage(
       tester,
-      repository: FakeOrderRepository(orders: [sampleOrder()]),
+      repository: FakeOrderRepository(orders: [sampleOrder(id: 15)]),
     );
 
-    expect(find.text('Ana Paula'), findsOneWidget);
-    expect(find.text('44999990000'), findsOneWidget);
-    expect(find.text('Nike Air Max • Nº 38 • Qtd. 2'), findsOneWidget);
+    expect(find.text('Pedido #0015'), findsOneWidget);
+    expect(find.text('23/07/2026'), findsOneWidget);
+    expect(find.text('ANA PAULA'), findsOneWidget);
+    expect(
+      find.text('Nike Air Max · Nº 38 · Cor: Preto · Qtd. 2'),
+      findsOneWidget,
+    );
     expect(find.text('2 produto(s)'), findsOneWidget);
-    expect(find.text('R\$ 300,00'), findsOneWidget);
+    expect(find.text('Pagamento total'), findsOneWidget);
+    expect(find.text('R\$\u00a0300,00'), findsOneWidget);
+    expect(find.text('Status'), findsOneWidget);
     expect(find.text('Pendente'), findsOneWidget);
-    expect(find.text('Entregar no centro'), findsOneWidget);
+  });
+
+  testWidgets('omite a cor da descrição quando não foi informada',
+      (tester) async {
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(
+        orders: [sampleOrder(color: null)],
+      ),
+    );
+
+    expect(find.text('Nike Air Max · Nº 38 · Qtd. 2'), findsOneWidget);
+    expect(find.textContaining('Cor:'), findsNothing);
+  });
+
+  testWidgets('normaliza status vazio para Pendente', (tester) async {
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(
+        orders: [sampleOrder(paymentStatus: '  ')],
+      ),
+    );
+
+    expect(find.text('Pendente'), findsOneWidget);
   });
 
   testWidgets('filtra pedidos após digitar na busca', (tester) async {
@@ -111,8 +155,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.searches, contains('Bruno'));
-    expect(find.text('Bruno Souza'), findsOneWidget);
-    expect(find.text('Ana Paula'), findsNothing);
+    expect(find.text('BRUNO SOUZA'), findsOneWidget);
+    expect(find.text('ANA PAULA'), findsNothing);
+  });
+
+  testWidgets('pesquisa por ID com cerquilha', (tester) async {
+    final repository = FakeOrderRepository(
+      orders: [sampleOrder(id: 15), sampleOrder(id: 27)],
+    );
+    await pumpPage(tester, repository: repository);
+
+    await tester.enterText(find.byType(TextField), '#27');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pedido #0027'), findsOneWidget);
+    expect(find.text('Pedido #0015'), findsNothing);
   });
 
   testWidgets('exibe estado de busca sem resultado', (tester) async {
@@ -125,6 +183,20 @@ void main() {
 
     expect(find.text('Nenhum pedido encontrado.'), findsOneWidget);
     expect(find.text('Cadastrar pedido'), findsNothing);
+  });
+
+  testWidgets('limpa a pesquisa pelo botão de fechar', (tester) async {
+    final repository = FakeOrderRepository(orders: [sampleOrder()]);
+    await pumpPage(tester, repository: repository);
+
+    await tester.enterText(find.byType(TextField), 'Ana');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Limpar pesquisa'));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Limpar pesquisa'), findsNothing);
+    expect(find.text('ANA PAULA'), findsOneWidget);
   });
 
   testWidgets('abre formulário de novo lançamento pelo botão', (tester) async {
@@ -140,6 +212,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Formulário fake'), findsOneWidget);
+  });
+
+  testWidgets('abre pedido para edição ao tocar no card', (tester) async {
+    Order? openedOrder;
+    final order = sampleOrder(id: 8);
+    await pumpPage(
+      tester,
+      repository: FakeOrderRepository(orders: [order]),
+      formPageBuilder: (value) {
+        openedOrder = value;
+        return const Scaffold(body: Text('Edição fake'));
+      },
+    );
+
+    await tester.tap(find.text('Pedido #0008'));
+    await tester.pumpAndSettle();
+
+    expect(openedOrder?.id, 8);
+    expect(find.text('Edição fake'), findsOneWidget);
+  });
+
+  testWidgets('cancela exclusão sem remover o pedido', (tester) async {
+    final repository = FakeOrderRepository(orders: [sampleOrder()]);
+    await pumpPage(tester, repository: repository);
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Excluir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancelar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.deletedId, isNull);
+    expect(find.text('Pedido #0001'), findsOneWidget);
   });
 
   testWidgets('exclui lançamento após confirmação', (tester) async {
