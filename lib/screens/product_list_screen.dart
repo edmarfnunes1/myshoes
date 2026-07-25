@@ -149,7 +149,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   Text(
                     'Tênis',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: AppColors.dark,
+                          color: Colors.white,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.6,
                         ),
@@ -190,7 +190,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     }
 
     return RefreshIndicator(
-      color: AppColors.dark,
+      color: Colors.white,
       backgroundColor: AppColors.neon,
       onRefresh: _loadProducts,
       child: ListView.separated(
@@ -299,8 +299,8 @@ class _ProductCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _ProductImage(),
-                const SizedBox(width: 14),
+                _ProductImage(brand: product.brand),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,15 +317,15 @@ class _ProductCard extends StatelessWidget {
                       const SizedBox(height: 1),
                       Text(
                         product.model,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               color: AppColors.dark,
                               fontWeight: FontWeight.w800,
-                              height: 1.08,
+                              height: 1.0,
                             ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       Wrap(
                         spacing: 7,
                         runSpacing: 7,
@@ -415,28 +415,68 @@ class _ProductCard extends StatelessWidget {
 }
 
 class _ProductImage extends StatelessWidget {
-  const _ProductImage();
+  const _ProductImage({required this.brand});
+
+  final String brand;
+
+  static const _defaultAsset = 'assets/images/tenis_neon4.png';
+
+  static const Map<String, String> _brandAssets = {
+    'nike': 'assets/Icones/Nike.png',
+    'adidas': 'assets/Icones/Adidas.png',
+    'puma': 'assets/Icones/Puma.png',
+    'new balance': 'assets/Icones/NewBalance.png',
+    'vans': 'assets/Icones/Vans.png',
+    'lacoste': 'assets/Icones/Lacoste.png',
+    'oakley': 'assets/Icones/Oakley.png',
+    'converse': 'assets/Icones/Converse.png',
+    'asics': 'assets/Icones/Oasics.png',
+    'fila': 'assets/Icones/Fila.png',
+    'reebok': 'assets/Icones/Reebok.png',
+    'under armour': 'assets/Icones/under_armour.png',
+    'mizuno': 'assets/Icones/Mizuno.png',
+    'olympikus': 'assets/Icones/olympikus.png',
+    'skechers': 'assets/Icones/skechers.png',
+    'jordan': 'assets/Icones/Jordan.png',
+    'vert (veja)': 'assets/Icones/Veja.png',
+    'vert': 'assets/Icones/Veja.png',
+    'veja': 'assets/Icones/Veja.png',
+    'timberland': 'assets/Icones/Timberland.png',
+    'dc shoes': 'assets/Icones/dc_shoes.png',
+    'balenciaga': 'assets/Icones/balenciaga.png',
+  };
+
+  String get _brandAsset {
+    final normalizedBrand = brand.trim().toLowerCase();
+    return _brandAssets[normalizedBrand] ?? _defaultAsset;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
-      padding: const EdgeInsets.all(4),
+      width: 60,
+      height: 60,
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.dark,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF253044)),
+        border: Border.all(color: AppColors.dark, width: 0.8),
       ),
       child: Image.asset(
-        'assets/images/tenis_neon4.png',
+        _brandAsset,
         width: 48,
+        height: 48,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Image.asset(
+          _defaultAsset,
+          width: 48,
           height: 48,
           fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(
-          Icons.inventory_2_outlined,
-          color: AppColors.neon,
-          size: 32,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.directions_run_rounded,
+            color: AppColors.neon,
+            size: 32,
+          ),
         ),
       ),
     );
@@ -465,7 +505,7 @@ class _InfoChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: AppColors.dark,
-          width: 0.9,
+          width: 1.2,
         ),
       ),
       child: Row(
@@ -518,7 +558,7 @@ class _EmptyProducts extends StatelessWidget {
               width: 84,
               height: 84,
               decoration: BoxDecoration(
-                color: AppColors.dark,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Icon(
@@ -536,7 +576,7 @@ class _EmptyProducts extends StatelessWidget {
                   : 'Nenhum tênis cadastrado',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.dark,
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
             ),

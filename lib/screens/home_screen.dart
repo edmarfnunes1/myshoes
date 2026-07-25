@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../pages/orders/order_list_page.dart';
 import '../pages/production/production_batch_page.dart';
+import 'about_screen.dart';
 import 'product_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => _ordersRefreshToken++);
           },
         ),
+        const AboutScreen(),
       ];
 
   @override
@@ -76,6 +78,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.factory_outlined,
                 selectedIcon: Icons.factory,
                 label: 'Fábrica',
+              ),
+              _destination(
+                index: 3,
+                icon: Icons.info_outline,
+                selectedIcon: Icons.info,
+                label: 'Sobre',
               ),
             ],
           ),
