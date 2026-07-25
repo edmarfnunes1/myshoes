@@ -172,7 +172,7 @@ class ProductionBatchPdfService {
   }) {
     final values = [
       ('Pedidos', orderCount),
-      ('Produtos', productCount),
+      ('Tênis', productCount),
       ('Total de pares', totalPairs),
       ('Com caixa', totalWithBox),
       ('Sem caixa', totalWithoutBox),

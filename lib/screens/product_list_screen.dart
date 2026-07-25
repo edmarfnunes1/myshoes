@@ -77,8 +77,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
       SnackBar(
         content: Text(
           product == null
-              ? 'Produto cadastrado com sucesso.'
-              : 'Produto atualizado com sucesso.',
+              ? 'Tênis cadastrado com sucesso.'
+              : 'Tênis atualizado com sucesso.',
         ),
       ),
     );
@@ -88,9 +88,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir produto?'),
+        title: const Text('Excluir tênis?'),
         content: Text(
-          'O produto ${product.brand} ${product.model} será removido definitivamente.',
+          'O tênis ${product.brand} ${product.model} será removido definitivamente.',
         ),
         actions: [
           TextButton(
@@ -114,7 +114,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     await _loadProducts();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Produto excluído.')),
+      const SnackBar(content: Text('Tênis excluído.')),
     );
   }
 
@@ -132,7 +132,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
-          'Novo produto',
+          'Novo tênis',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
        
@@ -147,7 +147,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Produtos',
+                    'Tênis',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           color: AppColors.dark,
                           fontWeight: FontWeight.w800,
@@ -532,8 +532,8 @@ class _EmptyProducts extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               isSearching
-                  ? 'Nenhum produto encontrado'
-                  : 'Nenhum produto cadastrado',
+                  ? 'Nenhum tênis encontrado'
+                  : 'Nenhum tênis cadastrado',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.dark,
@@ -556,7 +556,7 @@ class _EmptyProducts extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('Cadastrar primeiro produto'),
+                label: const Text('Cadastrar primeiro tênis'),
               ),
             ],
           ],

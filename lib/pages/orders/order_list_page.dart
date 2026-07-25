@@ -12,10 +12,12 @@ class OrderListPage extends StatefulWidget {
     super.key,
     this.repository,
     this.formPageBuilder,
+    this.refreshToken = 0,
   });
 
   final OrderRepository? repository;
   final Widget Function(Order? order)? formPageBuilder;
+  final int refreshToken;
 
   @override
   State<OrderListPage> createState() => _OrderListPageState();
@@ -44,6 +46,14 @@ class _OrderListPageState extends State<OrderListPage> {
     _repository = widget.repository ?? OrderRepository();
     _load();
     _searchController.addListener(_search);
+  }
+
+  @override
+  void didUpdateWidget(covariant OrderListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _load();
+    }
   }
 
   void _search() {
@@ -538,7 +548,7 @@ class _OrderListPageState extends State<OrderListPage> {
       children: [
         _summaryBadge(
           Icons.inventory_2_outlined,
-          '${order.totalQuantity} produto(s)',
+          '${order.totalQuantity} tênis',
         ),
         const SizedBox(height: 12),
         ...order.items.map(
@@ -546,7 +556,7 @@ class _OrderListPageState extends State<OrderListPage> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               [
-                item.productName ?? 'Produto',
+                item.productName ?? 'Tênis',
                 'Nº ${item.shoeSize}',
                 if (item.color?.trim().isNotEmpty == true)
                   'Cor: ${item.color!.trim()}',

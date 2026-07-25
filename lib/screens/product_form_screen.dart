@@ -305,7 +305,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível salvar o produto.')),
+        const SnackBar(content: Text('Não foi possível salvar o tênis.')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -316,7 +316,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_editing ? 'Editar produto' : 'Novo produto'),
+        title: Text(_editing ? 'Editar tênis' : 'Novo tênis'),
       ),
       body: SafeArea(
         child: Form(
@@ -421,7 +421,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.save_outlined),
-                label: Text(_saving ? 'Salvando...' : 'Salvar produto'),
+                label: Text(_saving ? 'Salvando...' : 'Salvar tênis'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(54),
                   shape: RoundedRectangleBorder(

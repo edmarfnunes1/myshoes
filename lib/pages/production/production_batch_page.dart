@@ -13,10 +13,12 @@ class ProductionBatchPage extends StatefulWidget {
     super.key,
     this.repository,
     this.refreshToken = 0,
+    this.onBatchCreated,
   });
 
   final ProductionBatchRepository? repository;
   final int refreshToken;
+  final VoidCallback? onBatchCreated;
 
   @override
   State<ProductionBatchPage> createState() => _ProductionBatchPageState();
@@ -92,6 +94,7 @@ class _ProductionBatchPageState extends State<ProductionBatchPage> {
     );
     if (confirmed != true) return;
     final id = await _repository.createBatch(selected);
+    widget.onBatchCreated?.call();
     _selectedOrderIds.clear();
     await _load();
     if (!mounted) return;
@@ -441,45 +444,21 @@ class _ProductionBatchDetailPageState extends State<ProductionBatchDetailPage> {
     final productCount = groups.length;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lote #${widget.batch.formattedId}'),
-        actions: [
-          IconButton(
-            tooltip: 'Compartilhar texto',
-            onPressed: _exporting
-                ? null
-                : () => _export(
-                      () => _textService.share(
-                        batch: widget.batch,
-                        rows: rows,
-                      ),
-                    ),
-            icon: const Icon(Icons.chat_outlined),
-          ),
-          IconButton(
-            tooltip: 'Visualizar PDF',
-            onPressed: _exporting
-                ? null
-                : () => _export(
-                      () => _pdfService.preview(
-                        batch: widget.batch,
-                        rows: rows,
-                      ),
-                    ),
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-          ),
-          IconButton(
-            tooltip: 'Compartilhar PDF',
-            onPressed: _exporting
-                ? null
-                : () => _export(
-                      () => _pdfService.share(
-                        batch: widget.batch,
-                        rows: rows,
-                      ),
-                    ),
-            icon: const Icon(Icons.share_outlined),
-          ),
-        ],
+        toolbarHeight: 76,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Detalhes do lote'),
+            const SizedBox(height: 2),
+            Text(
+              'Lote #${widget.batch.formattedId}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
       body: Stack(
         children: [
@@ -531,7 +510,7 @@ class _ProductionBatchDetailPageState extends State<ProductionBatchDetailPage> {
                     Expanded(
                       flex: 8,
                       child: _summaryItem(
-                        label: 'Produtos',
+                        label: 'Tênis',
                         value: '$productCount',
                       ),
                     ),

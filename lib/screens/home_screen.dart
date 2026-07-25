@@ -14,12 +14,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  int _ordersRefreshToken = 0;
   int _factoryRefreshToken = 0;
 
   List<Widget> get _pages => [
         const ProductListScreen(),
-        const OrderListPage(),
-        ProductionBatchPage(refreshToken: _factoryRefreshToken),
+        OrderListPage(refreshToken: _ordersRefreshToken),
+        ProductionBatchPage(
+          refreshToken: _factoryRefreshToken,
+          onBatchCreated: () {
+            setState(() => _ordersRefreshToken++);
+          },
+        ),
       ];
 
   @override
@@ -57,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 index: 0,
                 icon: Icons.inventory_2_outlined,
                 selectedIcon: Icons.inventory_2,
-                label: 'Produtos',
+                label: 'Tênis',
               ),
               _destination(
                 index: 1,

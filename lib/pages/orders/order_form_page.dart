@@ -203,7 +203,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adicione pelo menos um produto.')),
+        const SnackBar(content: Text('Adicione pelo menos um tênis.')),
       );
       return;
     }
@@ -329,7 +329,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
                         children: [
                           Icon(Icons.shopping_bag_outlined, size: 40),
                           SizedBox(height: 8),
-                          Text('Nenhum produto adicionado.'),
+                          Text('Nenhum tênis adicionado.'),
                         ],
                       ),
                     )
@@ -354,13 +354,13 @@ class _OrderFormPageState extends State<OrderFormPage> {
                     child: OutlinedButton.icon(
                       onPressed: _products.isEmpty ? null : _addItem,
                       icon: const Icon(Icons.add),
-                      label: const Text('Adicionar produto'),
+                      label: const Text('Adicionar tênis'),
                     ),
                   ),
                   if (_products.isEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Cadastre um produto antes de lançar o pedido.',
+                      'Cadastre um tênis antes de lançar o pedido.',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                         fontSize: 12,
@@ -535,7 +535,7 @@ class _OrderItemCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.productName ?? 'Produto',
+                        item.productName ?? 'Tênis',
                         style: Theme.of(context)
                             .textTheme
                             .titleSmall
@@ -686,10 +686,12 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final bottomSafeArea = MediaQuery.viewPaddingOf(context).bottom;
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottomSafeArea),
         child: Form(
           key: _formKey,
           child: Column(
@@ -700,7 +702,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
                   Expanded(
                     child: Text(
                       widget.initialItem == null
-                          ? 'Configurar produto'
+                          ? 'Configurar tênis'
                           : 'Editar item',
                       style: Theme.of(context)
                           .textTheme
@@ -925,7 +927,7 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Selecionar produto',
+                      'Selecionar tênis',
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
@@ -945,7 +947,7 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar produto',
+                  labelText: 'Pesquisar tênis',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _search.isEmpty
                       ? null
@@ -963,7 +965,7 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
             const SizedBox(height: 12),
             Expanded(
               child: _filteredProducts.isEmpty
-                  ? const Center(child: Text('Nenhum produto encontrado.'))
+                  ? const Center(child: Text('Nenhum tênis encontrado.'))
                   : RadioGroup<Product>(
                       groupValue: _selectedProduct,
                       onChanged: (value) =>
