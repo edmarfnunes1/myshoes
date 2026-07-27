@@ -8,6 +8,7 @@ import '../data/product_repository.dart';
 import '../models/product.dart';
 import '../widgets/app_page_header.dart';
 import '../widgets/product_thumbnail.dart';
+import '../pages/product_image_gallery_page.dart';
 import 'product_form_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -81,6 +82,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
           product == null
               ? 'Tênis cadastrado com sucesso.'
               : 'Tênis atualizado com sucesso.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openGallery(Product product, {int initialIndex = 0}) async {
+    final images = [...product.images]
+      ..sort((a, b) {
+        if (a.isPrimary != b.isPrimary) return a.isPrimary ? -1 : 1;
+        return a.position.compareTo(b.position);
+      });
+    final paths = images
+        .map((image) => image.imagePath.trim())
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (paths.isEmpty || !mounted) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ProductImageGalleryPage(
+          images: paths,
+          initialIndex: initialIndex.clamp(0, paths.length - 1),
+          productName: '${product.brand} — ${product.model}',
         ),
       ),
     );
@@ -187,6 +211,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
           onTap: () => _openForm(_products[index]),
           onEdit: () => _openForm(_products[index]),
           onDelete: () => _confirmDelete(_products[index]),
+          onOpenGallery: _products[index].images.isEmpty
+              ? null
+              : () => _openGallery(_products[index]),
         ),
       ),
     );
@@ -250,6 +277,7 @@ class _ProductCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    required this.onOpenGallery,
   });
 
   final Product product;
@@ -257,6 +285,7 @@ class _ProductCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onOpenGallery;
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +312,40 @@ class _ProductCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ProductThumbnail(product: product),
+                GestureDetector(
+                  key: const ValueKey('product-list-open-gallery'),
+                  onTap: onOpenGallery,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ProductThumbnail(product: product),
+                      if (product.images.length > 1)
+                        Positioned(
+                          right: -5,
+                          top: -5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.neon,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: AppColors.dark, width: .7),
+                            ),
+                            child: Text(
+                              '+${product.images.length - 1}',
+                              style: const TextStyle(
+                                color: AppColors.dark,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

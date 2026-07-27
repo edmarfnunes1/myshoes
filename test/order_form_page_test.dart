@@ -6,6 +6,7 @@ import 'package:myshoes/data/product_repository.dart';
 import 'package:myshoes/models/order.dart';
 import 'package:myshoes/models/order_item.dart';
 import 'package:myshoes/models/product.dart';
+import 'package:myshoes/models/product_image.dart';
 import 'package:myshoes/pages/orders/order_form_page.dart';
 
 class FakeOrderRepository extends OrderRepository {
@@ -293,4 +294,130 @@ void main() {
       expect(find.text('Com caixa'), findsOneWidget);
     });
   });
+  group('OrderFormPage - fotos no cadastro do pedido', () {
+    final productWithPhotos = Product(
+      id: 2,
+      brand: 'Nike',
+      model: 'Modelo N1',
+      minimumSize: 34,
+      maximumSize: 40,
+      costPrice: 180,
+      salePrice: 299,
+      images: List.generate(
+        5,
+        (index) => ProductImage(
+          id: index + 1,
+          productId: 2,
+          imagePath: 'imagem_${index + 1}.jpg',
+          thumbnailPath: 'miniatura_${index + 1}.jpg',
+          position: index,
+          isPrimary: index == 0,
+          createdAt: DateTime(2026, 7, 27),
+        ),
+      ),
+    );
+
+    testWidgets('mostra foto principal, quantidade e acesso à galeria',
+        (tester) async {
+      await pumpPage(
+        tester,
+        productRepository: FakeProductRepository(products: [productWithPhotos]),
+      );
+
+      await tester.tap(find.text('Adicionar tênis'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nike Modelo N1'));
+      await tester.pump();
+      await tester.tap(find.text('Selecionar'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('order-product-photo-preview')),
+        findsOneWidget,
+      );
+      expect(find.text('Foto principal'), findsOneWidget);
+      expect(find.text('🖼 5 fotos disponíveis'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('order-product-more-photos-badge')),
+        findsOneWidget,
+      );
+      expect(find.text('+4'), findsOneWidget);
+      expect(find.text('Ver galeria'), findsOneWidget);
+
+      await tester.tap(find.text('Ver galeria'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('product-gallery-page-view')),
+        findsOneWidget,
+      );
+      expect(find.text('1 de 5'), findsOneWidget);
+    });
+
+    testWidgets('mantém o ícone padrão quando o tênis não possui foto',
+        (tester) async {
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Adicionar tênis'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nike Air Max'));
+      await tester.pump();
+      await tester.tap(find.text('Selecionar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Imagem não cadastrada'), findsOneWidget);
+      expect(find.text('Ícone padrão do tênis'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('product-thumbnail-fallback')),
+        findsOneWidget,
+      );
+      expect(find.text('Ver galeria'), findsNothing);
+    });
+
+    testWidgets(
+        'mantém as regras de numeração, quantidade, cor e caixa com fotos',
+        (tester) async {
+      await pumpPage(
+        tester,
+        productRepository: FakeProductRepository(products: [productWithPhotos]),
+      );
+
+      await tester.tap(find.text('Adicionar tênis'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nike Modelo N1'));
+      await tester.pump();
+      await tester.tap(find.text('Selecionar'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(DropdownButtonFormField<int>, 'Numeração *'),
+          findsOneWidget);
+      expect(find.text('Quantidade *'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Cor'), findsOneWidget);
+      expect(find.text('Com caixa'), findsOneWidget);
+
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('36').last);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('order-item-quantity-increase')),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Cor'),
+        'Azul',
+      );
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      await tester.tap(find.text('Adicionar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nº 36'), findsOneWidget);
+      expect(find.text('Qtd. 2'), findsOneWidget);
+      expect(find.text('Cor: Azul'), findsOneWidget);
+      expect(find.text('Com caixa'), findsOneWidget);
+    });
+
+  });
+
+
 }

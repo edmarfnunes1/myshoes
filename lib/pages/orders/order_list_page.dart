@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/order_repository.dart';
+import '../../data/product_repository.dart';
 import '../../models/order.dart';
+import '../../models/order_item.dart';
+import '../../models/product.dart';
+import '../../pages/product_image_gallery_page.dart';
 import '../../widgets/app_page_header.dart';
+import '../../widgets/product_thumbnail.dart';
 import 'order_form_page.dart';
 
 class OrderListPage extends StatefulWidget {
@@ -13,11 +18,13 @@ class OrderListPage extends StatefulWidget {
     super.key,
     this.repository,
     this.formPageBuilder,
+    this.productRepository,
     this.refreshToken = 0,
   });
 
   final OrderRepository? repository;
   final Widget Function(Order? order)? formPageBuilder;
+  final ProductRepository? productRepository;
   final int refreshToken;
 
   @override
@@ -28,6 +35,7 @@ enum _OrdersSection { ongoing, production }
 
 class _OrderListPageState extends State<OrderListPage> {
   late final OrderRepository _repository;
+  late final ProductRepository _productRepository;
   final _searchController = TextEditingController();
   final _dateFormat = DateFormat('dd/MM/yyyy');
   final _currency = NumberFormat.currency(
@@ -45,6 +53,7 @@ class _OrderListPageState extends State<OrderListPage> {
   void initState() {
     super.initState();
     _repository = widget.repository ?? OrderRepository();
+    _productRepository = widget.productRepository ?? ProductRepository();
     _load();
     _searchController.addListener(_search);
   }
@@ -544,22 +553,11 @@ class _OrderListPageState extends State<OrderListPage> {
         const SizedBox(height: 12),
         ...order.items.map(
           (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              [
-                item.productName ?? 'Tênis',
-                'Nº ${item.shoeSize}',
-                if (item.color?.trim().isNotEmpty == true)
-                  'Cor: ${item.color!.trim()}',
-                'Qtd. ${item.quantity}',
-                item.withBox ? 'C.Caixa' : 'S.Caixa',
-              ].join(' · '),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF202733),
-                height: 1.3,
-              ),
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _OrderItemDetails(
+              item: item,
+              theme: theme,
+              productRepository: _productRepository,
             ),
           ),
         ),
@@ -690,4 +688,127 @@ class _OrderListPageState extends State<OrderListPage> {
     return Icons.schedule;
   }
 
+}
+
+
+class _OrderItemDetails extends StatelessWidget {
+  const _OrderItemDetails({
+    required this.item,
+    required this.theme,
+    required this.productRepository,
+  });
+
+  final OrderItem item;
+  final ThemeData theme;
+  final ProductRepository productRepository;
+
+  Future<void> _openGallery(BuildContext context, Product product) async {
+    final imagePaths = product.images
+        .map((image) => image.imagePath)
+        .where((path) => path.trim().isNotEmpty)
+        .toList(growable: false);
+    if (imagePaths.isEmpty) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ProductImageGalleryPage(
+          images: imagePaths,
+          initialIndex: 0,
+          productName: '${product.brand} — ${product.model}',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Product?>(
+      future: productRepository.findByIdWithImages(item.productId),
+      builder: (context, snapshot) {
+        final product = snapshot.data;
+        final displayProduct = product ?? _fallbackProduct(item);
+        final hasImages = product?.images.isNotEmpty == true;
+
+        return Row(
+          key: ValueKey('order-item-details-${item.id ?? item.productId}'),
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Semantics(
+              button: hasImages,
+              label: hasImages
+                  ? 'Abrir fotos de ${item.productName ?? 'tênis'}'
+                  : 'Tênis sem fotos cadastradas',
+              child: InkWell(
+                key: ValueKey('order-item-thumbnail-${item.id ?? item.productId}'),
+                borderRadius: BorderRadius.circular(13),
+                onTap: hasImages ? () => _openGallery(context, product!) : null,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ProductThumbnail(
+                      product: displayProduct,
+                      size: 54,
+                      borderRadius: 13,
+                    ),
+                    if (hasImages)
+                      Positioned(
+                        right: -4,
+                        bottom: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D131D),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(
+                            Icons.photo_library_outlined,
+                            color: Color(0xFFCCFF00),
+                            size: 13,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                [
+                  item.productName ?? 'Tênis',
+                  'Nº ${item.shoeSize}',
+                  if (item.color?.trim().isNotEmpty == true)
+                    'Cor: ${item.color!.trim()}',
+                  'Qtd. ${item.quantity}',
+                  item.withBox ? 'C.Caixa' : 'S.Caixa',
+                ].join(' · '),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF202733),
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Product _fallbackProduct(OrderItem item) {
+    final name = item.productName?.trim() ?? '';
+    final separator = name.indexOf(' — ');
+    final brand = separator > 0 ? name.substring(0, separator).trim() : name;
+    final model = separator > 0 ? name.substring(separator + 3).trim() : '';
+    return Product(
+      id: item.productId,
+      brand: brand.isEmpty ? 'Tênis' : brand,
+      model: model,
+      minimumSize: item.shoeSize,
+      maximumSize: item.shoeSize,
+      costPrice: 0,
+    );
+  }
 }

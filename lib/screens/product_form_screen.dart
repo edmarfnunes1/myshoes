@@ -11,7 +11,7 @@ import '../models/product_image.dart';
 import '../services/product_image_selection_service.dart';
 import '../services/product_image_storage_service.dart';
 import '../widgets/currency_input_formatter.dart';
-import '../widgets/product_gallery_viewer.dart';
+import '../pages/product_image_gallery_page.dart';
 
 
 class _GalleryItem {
@@ -415,11 +415,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   Future<void> _previewImage(_GalleryItem item) async {
     final initialIndex = _galleryItems.indexOf(item);
-    await showDialog<void>(
-      context: context,
-      builder: (context) => ProductGalleryViewer(
-        imagePaths: _galleryItems.map((entry) => entry.imagePath).toList(),
-        initialIndex: initialIndex < 0 ? 0 : initialIndex,
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ProductImageGalleryPage(
+          images: _galleryItems.map((entry) => entry.imagePath).toList(),
+          initialIndex: initialIndex < 0 ? 0 : initialIndex,
+          productName: '${_brandController.text.trim()} — ${_modelController.text.trim()}',
+        ),
       ),
     );
   }

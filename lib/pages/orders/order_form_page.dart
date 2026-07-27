@@ -8,6 +8,7 @@ import '../../data/product_repository.dart';
 import '../../models/order.dart';
 import '../../models/order_item.dart';
 import '../../models/product.dart';
+import '../product_image_gallery_page.dart';
 import '../../widgets/product_thumbnail.dart';
 import '../../widgets/currency_input_formatter.dart';
 
@@ -735,6 +736,8 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
                 'Numerações ${widget.product.minimumSize} a ${widget.product.maximumSize}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              const SizedBox(height: 16),
+              _ProductPhotoPreview(product: widget.product),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 12,
@@ -805,6 +808,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                               IconButton(
+                                key: const ValueKey('order-item-quantity-increase'),
                                 onPressed: () => setState(() => _quantity++),
                                 icon: const Icon(Icons.add),
                               ),
@@ -883,6 +887,132 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _ProductPhotoPreview extends StatelessWidget {
+  const _ProductPhotoPreview({required this.product});
+
+  final Product product;
+
+  List<String> get _imagePaths {
+    final images = [...product.images]
+      ..sort((a, b) {
+        if (a.isPrimary != b.isPrimary) return a.isPrimary ? -1 : 1;
+        return a.position.compareTo(b.position);
+      });
+    return images
+        .map((image) => image.imagePath.trim())
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> _openGallery(BuildContext context) async {
+    final paths = _imagePaths;
+    if (paths.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ProductImageGalleryPage(
+          images: paths,
+          productName: '${product.brand} — ${product.model}',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageCount = product.images.length;
+    final hasImages = imageCount > 0 && _imagePaths.isNotEmpty;
+
+    return Container(
+      key: const ValueKey('order-product-photo-preview'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ProductThumbnail(
+                key: const ValueKey('order-product-primary-photo'),
+                product: product,
+                size: 92,
+                borderRadius: 14,
+              ),
+              if (imageCount > 1)
+                Positioned(
+                  right: -7,
+                  top: -7,
+                  child: Container(
+                    key: const ValueKey('order-product-more-photos-badge'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      '+${imageCount - 1}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasImages ? 'Foto principal' : 'Imagem não cadastrada',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  imageCount == 0
+                      ? 'Ícone padrão do tênis'
+                      : imageCount == 1
+                          ? '🖼 1 foto disponível'
+                          : '🖼 $imageCount fotos disponíveis',
+                  key: const ValueKey('order-product-photo-count'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (hasImages) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    key: const ValueKey('order-product-open-gallery'),
+                    onPressed: () => _openGallery(context),
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                    label: const Text('Ver galeria'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -994,7 +1124,8 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                             title: Text('${product.brand} ${product.model}'),
                             subtitle: Text(
                               'Numerações ${product.minimumSize} a ${product.maximumSize}'
-                              '${product.salePrice == null ? '' : ' • ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2).format(product.salePrice)}'}',
+                              '${product.salePrice == null ? '' : ' • ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2).format(product.salePrice)}'}'
+                              '${product.images.isEmpty ? '' : ' • ${product.images.length} ${product.images.length == 1 ? 'foto' : 'fotos'}'}',
                             ),
                           );
                         },

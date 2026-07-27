@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:myshoes/widgets/product_gallery_viewer.dart';
+import 'package:myshoes/pages/product_image_gallery_page.dart';
 
 void main() {
   late Directory directory;
   late List<String> imagePaths;
 
   setUp(() {
-    directory = Directory.systemTemp.createTempSync('myshoes_gallery_test_');
+    directory = Directory.systemTemp.createTempSync('myshoes_gallery_page_');
     imagePaths = List.generate(3, (index) {
       final file = File('${directory.path}/image_$index.png');
       file.writeAsBytesSync(const <int>[
@@ -38,11 +38,13 @@ void main() {
         home: Builder(
           builder: (context) => Scaffold(
             body: ElevatedButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => ProductGalleryViewer(
-                  imagePaths: paths,
-                  initialIndex: initialIndex,
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => ProductImageGalleryPage(
+                    images: paths,
+                    initialIndex: initialIndex,
+                    productName: 'Nike — Air Max',
+                  ),
                 ),
               ),
               child: const Text('Abrir galeria'),
@@ -74,17 +76,11 @@ void main() {
       const Offset(-600, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.text('2 de 3'), findsOneWidget);
 
-    await tester.drag(
-      find.byKey(const ValueKey('product-gallery-page-view')),
-      const Offset(-600, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('3 de 3'), findsOneWidget);
+    expect(find.text('2 de 3'), findsOneWidget);
   });
 
-  testWidgets('exibe o contador da foto atual', (tester) async {
+  testWidgets('exibe contador e pontos de navegação', (tester) async {
     await openGallery(tester, paths: imagePaths, initialIndex: 2);
 
     expect(
@@ -92,9 +88,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('3 de 3'), findsOneWidget);
+    expect(find.byKey(const ValueKey('product-gallery-dot-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('product-gallery-dot-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('product-gallery-dot-2')), findsOneWidget);
   });
 
-  testWidgets('funciona com apenas uma foto', (tester) async {
+  testWidgets('funciona com uma única foto', (tester) async {
     await openGallery(tester, paths: [imagePaths.first]);
 
     expect(find.text('1 de 1'), findsOneWidget);
@@ -102,13 +101,7 @@ void main() {
       find.byKey(const ValueKey('product-gallery-image-0')),
       findsOneWidget,
     );
-
-    await tester.drag(
-      find.byKey(const ValueKey('product-gallery-page-view')),
-      const Offset(-600, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('1 de 1'), findsOneWidget);
+    expect(find.byKey(const ValueKey('product-gallery-dot-0')), findsNothing);
   });
 
   testWidgets('fecha corretamente', (tester) async {
@@ -117,7 +110,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('product-gallery-close')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ProductGalleryViewer), findsNothing);
+    expect(find.byType(ProductImageGalleryPage), findsNothing);
     expect(find.text('Abrir galeria'), findsOneWidget);
   });
 }

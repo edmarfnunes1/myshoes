@@ -42,7 +42,7 @@ class AppDatabase {
           await _createProductsTable(database);
           await _createCustomersTable(database);
           await _createOrdersTable(database);
-          await _createOrderItemsTable(database);
+          await _createOrderItemsTable(database, includeColor: true);
           await _createProductionBatchTables(database);
           await _createProductImagesTable(database);
         },
@@ -143,14 +143,18 @@ class AppDatabase {
     ''');
   }
 
-  Future<void> _createOrderItemsTable(DatabaseExecutor database) async {
+  Future<void> _createOrderItemsTable(
+    DatabaseExecutor database, {
+    required bool includeColor,
+  }) async {
+    final colorColumn = includeColor ? 'color TEXT,' : '';
     await database.execute('''
       CREATE TABLE order_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id INTEGER NOT NULL,
         product_id INTEGER NOT NULL,
         shoe_size INTEGER NOT NULL,
-        color TEXT,
+        $colorColumn
         quantity INTEGER NOT NULL,
         with_box INTEGER NOT NULL DEFAULT 0,
         unit_price REAL NOT NULL,
@@ -209,7 +213,7 @@ class AppDatabase {
     await database.transaction((transaction) async {
       await transaction.execute('ALTER TABLE orders RENAME TO orders_old');
       await _createOrdersTable(transaction);
-      await _createOrderItemsTable(transaction);
+      await _createOrderItemsTable(transaction, includeColor: false);
 
       await transaction.execute('''
         INSERT INTO orders (

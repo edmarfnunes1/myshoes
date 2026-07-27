@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:myshoes/data/order_repository.dart';
+import 'package:myshoes/data/product_repository.dart';
 import 'package:myshoes/models/order.dart';
 import 'package:myshoes/models/order_item.dart';
+import 'package:myshoes/models/product.dart';
+import 'package:myshoes/models/product_image.dart';
 import 'package:myshoes/pages/orders/order_list_page.dart';
+import 'package:myshoes/pages/product_image_gallery_page.dart';
 
 class FakeOrderRepository extends OrderRepository {
   FakeOrderRepository({this.orders = const []});
@@ -36,6 +42,15 @@ class FakeOrderRepository extends OrderRepository {
     deletedId = id;
     orders = orders.where((order) => order.id != id).toList();
   }
+}
+
+class FakeProductRepository extends ProductRepository {
+  FakeProductRepository({this.productsById = const {}});
+
+  final Map<int, Product> productsById;
+
+  @override
+  Future<Product?> findByIdWithImages(int id) async => productsById[id];
 }
 
 void main() {
@@ -73,6 +88,7 @@ void main() {
     WidgetTester tester, {
     required FakeOrderRepository repository,
     Widget Function(Order? order)? formPageBuilder,
+    FakeProductRepository? productRepository,
   }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1;
@@ -84,6 +100,7 @@ void main() {
         home: OrderListPage(
           repository: repository,
           formPageBuilder: formPageBuilder,
+          productRepository: productRepository ?? FakeProductRepository(),
         ),
       ),
     );
@@ -492,4 +509,115 @@ void main() {
     expect(repository.deletedId, 1);
     expect(find.text('Nenhum pedido em andamento.'), findsOneWidget);
   });
+
+  group('imagens nos detalhes do pedido', () {
+    late Directory imageDirectory;
+
+    setUp(() {
+      imageDirectory =
+          Directory.systemTemp.createTempSync('myshoes_order_images_');
+    });
+
+    tearDown(() {
+      if (imageDirectory.existsSync()) {
+        imageDirectory.deleteSync(recursive: true);
+      }
+    });
+
+    Product productWithImage({required String thumbnailPath}) => Product(
+          id: 1,
+          brand: 'Nike',
+          model: 'Air Max',
+          minimumSize: 34,
+          maximumSize: 44,
+          costPrice: 150,
+          images: [
+            ProductImage(
+              id: 10,
+              productId: 1,
+              imagePath: thumbnailPath,
+              thumbnailPath: thumbnailPath,
+              position: 0,
+              isPrimary: true,
+              createdAt: DateTime(2026, 7, 27),
+            ),
+          ],
+        );
+
+    File createImage(String name) {
+      final file = File('${imageDirectory.path}/$name.png');
+      file.writeAsBytesSync(const <int>[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+        0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137,
+        0, 0, 0, 13, 73, 68, 65, 84, 8, 215, 99, 248, 207, 192, 240,
+        31, 0, 5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69,
+        78, 68, 174, 66, 96, 130,
+      ]);
+      return file;
+    }
+
+    testWidgets('mostra miniatura principal e abre a galeria', (tester) async {
+      final image = createImage('principal');
+      final product = productWithImage(thumbnailPath: image.path);
+
+      await pumpPage(
+        tester,
+        repository: FakeOrderRepository(orders: [sampleOrder()]),
+        productRepository: FakeProductRepository(productsById: {1: product}),
+      );
+
+      expect(
+        find.byKey(const ValueKey('product-thumbnail-file')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('order-item-thumbnail-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductImageGalleryPage), findsOneWidget);
+      expect(find.text('1 de 1'), findsOneWidget);
+    });
+
+    testWidgets('mostra ícone quando o tênis não possui foto', (tester) async {
+      const product = Product(
+        id: 1,
+        brand: 'Nike',
+        model: 'Air Max',
+        minimumSize: 34,
+        maximumSize: 44,
+        costPrice: 150,
+      );
+
+      await pumpPage(
+        tester,
+        repository: FakeOrderRepository(orders: [sampleOrder()]),
+        productRepository:
+            FakeProductRepository(productsById: const {1: product}),
+      );
+
+      expect(
+        find.byKey(const ValueKey('product-thumbnail-fallback')),
+        findsOneWidget,
+      );
+      expect(find.byType(ProductImageGalleryPage), findsNothing);
+    });
+
+    testWidgets('usa fallback quando o arquivo da miniatura está ausente',
+        (tester) async {
+      final missingPath = '${imageDirectory.path}/ausente.png';
+      final product = productWithImage(thumbnailPath: missingPath);
+
+      await pumpPage(
+        tester,
+        repository: FakeOrderRepository(orders: [sampleOrder()]),
+        productRepository: FakeProductRepository(productsById: {1: product}),
+      );
+
+      expect(
+        find.byKey(const ValueKey('product-thumbnail-fallback')),
+        findsOneWidget,
+      );
+    });
+  });
+
 }
