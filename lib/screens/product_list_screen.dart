@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../data/product_repository.dart';
 import '../models/product.dart';
+import '../widgets/app_page_header.dart';
 import '../widgets/product_thumbnail.dart';
 import 'product_form_screen.dart';
 
@@ -142,31 +143,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
         bottom: false,
         child: Column(
           children: [
+            const AppPageHeader(
+              title: 'Tênis',
+              subtitle: 'Modelos cadastrados',
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tênis',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.6,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Modelos cadastrados',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF667085),
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                  const SizedBox(height: 18),
-                  _SearchField(controller: _searchController),
-                ],
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: _SearchField(controller: _searchController),
             ),
             const SizedBox(height: 14),
             Expanded(child: _buildContent()),

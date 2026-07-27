@@ -34,6 +34,7 @@ flutter:
   assets:
     - assets/images/myshoes_logo.png
     - assets/images/tenis_neon4.png
+    - assets/images/slogan.png
     - assets/Icones/
 
 flutter_launcher_icons:

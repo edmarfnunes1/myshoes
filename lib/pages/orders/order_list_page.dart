@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/order_repository.dart';
 import '../../models/order.dart';
+import '../../widgets/app_page_header.dart';
 import 'order_form_page.dart';
 
 class OrderListPage extends StatefulWidget {
@@ -179,20 +180,6 @@ class _OrderListPageState extends State<OrderListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 76,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Pedidos'),
-            SizedBox(height: 2),
-            Text(
-              'Pedidos dos clientes',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _open(),
         shape: RoundedRectangleBorder(
@@ -208,8 +195,12 @@ class _OrderListPageState extends State<OrderListPage> {
       body: SafeArea(
         child: Column(
           children: [
+            const AppPageHeader(
+              title: 'Pedidos',
+              subtitle: 'Pedidos dos clientes',
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: TextField(
                 controller: _searchController,
                 keyboardType: TextInputType.text,

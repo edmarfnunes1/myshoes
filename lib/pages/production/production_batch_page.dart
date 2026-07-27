@@ -7,6 +7,7 @@ import '../../models/production_batch.dart';
 import '../../services/production_batch_pdf_service.dart';
 import '../../services/production_batch_text_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_page_header.dart';
 
 class ProductionBatchPage extends StatefulWidget {
   const ProductionBatchPage({
@@ -199,27 +200,20 @@ class _ProductionBatchPageState extends State<ProductionBatchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 76,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Fábrica'),
-            SizedBox(height: 2),
-            Text(
-              'Consolidação de pedidos',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
-          ],
-        ),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : SafeArea(
+              child: RefreshIndicator(
               onRefresh: _load,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
                 children: [
+                  const AppPageHeader(
+                    title: 'Fábrica',
+                    subtitle: 'Consolidação de pedidos',
+                    horizontalPadding: 0,
+                  ),
+                  const SizedBox(height: 16),
                   _selectionHeader(),
                   const SizedBox(height: 12),
                   if (_orders.isEmpty)
@@ -244,6 +238,7 @@ class _ProductionBatchPageState extends State<ProductionBatchPage> {
                   else
                     ..._batches.map(_batchTile),
                 ],
+              ),
               ),
             ),
       bottomNavigationBar: _selectedOrderIds.isEmpty

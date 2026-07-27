@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../widgets/app_page_header.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -10,17 +11,15 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Sobre o app',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
-            const _AppHeader(),
+            const AppPageHeader(
+              title: 'Sobre o app',
+              subtitle: 'Informações e recursos do MyShoes',
+              horizontalPadding: 0,
+            ),
             const SizedBox(height: 20),
             const _InfoCard(
               icon: Icons.info_outline,
@@ -102,57 +101,6 @@ class AboutScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AppHeader extends StatelessWidget {
-  const _AppHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 104,
-          height: 104,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.dark,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x24000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Image.asset(
-            'assets/images/myshoes_logo.png',
-            fit: BoxFit.contain,
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'MyShoes',
-          style: TextStyle(
-            color: AppColors.dark,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Controle de pedidos para vendedores de calçados',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Color(0xFF667085),
-            fontSize: 14,
-            height: 1.35,
-          ),
-        ),
-      ],
     );
   }
 }
