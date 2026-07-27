@@ -3,10 +3,22 @@ import 'package:sqflite/sqflite.dart';
 
 
 class AppDatabase {
-  AppDatabase._();
+  AppDatabase._({DatabaseFactory? factory, String? databasePath})
+      : _factory = factory,
+        _databasePath = databasePath;
+
+  factory AppDatabase.forTesting({
+    required DatabaseFactory factory,
+    required String databasePath,
+  }) {
+    return AppDatabase._(factory: factory, databasePath: databasePath);
+  }
 
   static final AppDatabase instance = AppDatabase._();
-  static Database? _database;
+
+  final DatabaseFactory? _factory;
+  final String? _databasePath;
+  Database? _database;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -15,50 +27,63 @@ class AppDatabase {
   }
 
   Future<Database> _openDatabase() async {
-    final databasePath = await getDatabasesPath();
-    final path = join(databasePath, 'myshoes.db');
+    final factory = _factory ?? databaseFactory;
+    final path = _databasePath ??
+        join(await factory.getDatabasesPath(), 'myshoes.db');
 
-    return openDatabase(
+    return factory.openDatabase(
       path,
-      version: 8,
-      onConfigure: (database) async {
-        await database.execute('PRAGMA foreign_keys = ON');
-      },
-      onCreate: (database, version) async {
-        await _createProductsTable(database);
-        await _createCustomersTable(database);
-        await _createOrdersTable(database);
-        await _createOrderItemsTable(database);
-        await _createProductionBatchTables(database);
-      },
-      onUpgrade: (database, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
+      options: OpenDatabaseOptions(
+        version: 9,
+        onConfigure: (database) async {
+          await database.execute('PRAGMA foreign_keys = ON');
+        },
+        onCreate: (database, version) async {
+          await _createProductsTable(database);
           await _createCustomersTable(database);
-        }
-        if (oldVersion < 3) {
-          await _createLegacyOrdersTable(database);
-        }
-        if (oldVersion < 4) {
-          await _migrateOrdersToInlineCustomer(database);
-        }
-        if (oldVersion < 5) {
-          await _migrateOrdersToItems(database);
-        }
-        if (oldVersion < 6) {
-          await database.execute(
-            'ALTER TABLE order_items ADD COLUMN color TEXT',
-          );
-        }
-        if (oldVersion < 7) {
-          await database.execute(
-            "UPDATE orders SET created_at = substr(created_at, 1, 10)",
-          );
-        }
-        if (oldVersion < 8) {
+          await _createOrdersTable(database);
+          await _createOrderItemsTable(database);
           await _createProductionBatchTables(database);
-        }
-      },
+          await _createProductImagesTable(database);
+        },
+        onUpgrade: (database, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await _createCustomersTable(database);
+          }
+          if (oldVersion < 3) {
+            await _createLegacyOrdersTable(database);
+          }
+          if (oldVersion < 4) {
+            await _migrateOrdersToInlineCustomer(database);
+          }
+          if (oldVersion < 5) {
+            await _migrateOrdersToItems(database);
+          }
+          if (oldVersion < 6) {
+            await database.execute(
+              'ALTER TABLE order_items ADD COLUMN color TEXT',
+            );
+          }
+          if (oldVersion < 7) {
+            await database.execute(
+              "UPDATE orders SET created_at = substr(created_at, 1, 10)",
+            );
+          }
+          if (oldVersion < 8) {
+            await _createProductionBatchTables(database);
+          }
+          if (oldVersion < 9) {
+            await _createProductImagesTable(database);
+          }
+        },
+      ),
     );
+  }
+
+  Future<void> close() async {
+    final database = _database;
+    _database = null;
+    await database?.close();
   }
 
   Future<void> _createProductsTable(DatabaseExecutor database) async {
@@ -206,6 +231,30 @@ class AppDatabase {
 
       await transaction.execute('DROP TABLE orders_old');
     });
+  }
+
+  Future<void> _createProductImagesTable(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS product_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        image_path TEXT NOT NULL,
+        thumbnail_path TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0 CHECK (position >= 0),
+        is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_product_images_product_id '
+      'ON product_images(product_id)',
+    );
+    await database.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_product_images_one_primary
+      ON product_images(product_id)
+      WHERE is_primary = 1
+    ''');
   }
 
   Future<void> _createProductionBatchTables(DatabaseExecutor database) async {

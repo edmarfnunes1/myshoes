@@ -1,20 +1,51 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../data/product_repository.dart';
 import '../models/product.dart';
+import '../models/product_image.dart';
+import '../services/product_image_selection_service.dart';
+import '../services/product_image_storage_service.dart';
 import '../widgets/currency_input_formatter.dart';
+import '../widgets/product_gallery_viewer.dart';
+
+
+class _GalleryItem {
+  _GalleryItem.existing(this.existing)
+      : temporary = null,
+        isPrimary = existing!.isPrimary;
+
+  _GalleryItem.temporary(this.temporary)
+      : existing = null,
+        isPrimary = false;
+
+  final ProductImage? existing;
+  final TemporaryProductImageFiles? temporary;
+  bool isPrimary;
+
+  bool get isTemporary => temporary != null;
+  String get imagePath => existing?.imagePath ?? temporary!.imagePath;
+  String get thumbnailPath =>
+      existing?.thumbnailPath ?? temporary!.thumbnailPath;
+}
 
 class ProductFormScreen extends StatefulWidget {
   const ProductFormScreen({
     super.key,
     this.product,
     this.repository,
+    this.imageSelectionService,
+    this.imageStorageService,
   });
 
   final Product? product;
   final ProductRepository? repository;
+  final ProductImageSelectionService? imageSelectionService;
+  final ProductImageStorageService? imageStorageService;
 
   @override
   State<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -23,6 +54,8 @@ class ProductFormScreen extends StatefulWidget {
 class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final ProductRepository _repository;
+  late final ProductImageStorageService _imageStorageService;
+  late final ProductImageSelectionService _imageSelectionService;
   final _brandController = TextEditingController();
   final _brandFocusNode = FocusNode();
   final _modelController = TextEditingController();
@@ -57,13 +90,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   List<String> _availableBrands = _popularBrands;
   bool _saving = false;
+  bool _selectingImages = false;
+  final List<_GalleryItem> _galleryItems = [];
+  bool _loadingImages = false;
 
   bool get _editing => widget.product != null;
 
   @override
   void initState() {
     super.initState();
-    _repository = widget.repository ?? ProductRepository();
+    _imageStorageService =
+        widget.imageStorageService ?? ProductImageStorageService();
+    _imageSelectionService = widget.imageSelectionService ??
+        ProductImageSelectionService(storageService: _imageStorageService);
+    _repository = widget.repository ??
+        ProductRepository(imageStorageService: _imageStorageService);
     final product = widget.product;
     _loadBrands();
     if (product == null) return;
@@ -82,10 +123,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _salePriceController.text = currency.format(product.salePrice);
     }
     _notesController.text = product.notes ?? '';
+    _galleryItems.addAll(product.images.map(_GalleryItem.existing));
+    if (_galleryItems.isEmpty && product.id != null) {
+      unawaited(_loadExistingImages(product.id!));
+    }
   }
 
   @override
   void dispose() {
+    for (final item in _galleryItems.where((item) => item.isTemporary)) {
+      unawaited(_imageStorageService.removeTemporary(item.temporary!));
+    }
     _brandController.dispose();
     _brandFocusNode.dispose();
     _modelController.dispose();
@@ -280,6 +328,266 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     return null;
   }
 
+
+  int get _availableImageSlots => 5 - _galleryItems.length;
+
+  Future<void> _loadExistingImages(int productId) async {
+    setState(() => _loadingImages = true);
+    try {
+      final images = await _repository.getImagesByProductId(productId);
+      if (!mounted) return;
+      setState(() {
+        _galleryItems
+          ..removeWhere((item) => !item.isTemporary)
+          ..insertAll(0, images.map(_GalleryItem.existing));
+      });
+    } catch (_) {
+      // O formulário continua utilizável mesmo se as fotos não puderem ser lidas.
+    } finally {
+      if (mounted) setState(() => _loadingImages = false);
+    }
+  }
+
+  Future<void> _selectImages() async {
+    final available = _availableImageSlots;
+    if (available <= 0) {
+      _showMessage('Este tênis já possui o limite de 5 fotos.');
+      return;
+    }
+
+    setState(() => _selectingImages = true);
+    try {
+      final result = await _imageSelectionService.selectAndPrepare(
+        availableSlots: available,
+      );
+      if (!mounted || result.cancelled) return;
+      setState(() {
+        final wasEmpty = _galleryItems.isEmpty;
+        _galleryItems.addAll(result.images.map(_GalleryItem.temporary));
+        if (wasEmpty && _galleryItems.isNotEmpty) {
+          _setPrimary(0, notify: false);
+        }
+      });
+    } on ProductImageStorageException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Não foi possível preparar as fotos. Verifique os arquivos e o espaço disponível no aparelho.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _selectingImages = false);
+    }
+  }
+
+  Future<void> _removeImage(int index) async {
+    final item = _galleryItems.removeAt(index);
+    final removedPrimary = item.isPrimary;
+    if (removedPrimary && _galleryItems.isNotEmpty) {
+      _setPrimary(0, notify: false);
+    }
+    setState(() {});
+    if (item.isTemporary) {
+      try {
+        await _imageStorageService.removeTemporary(item.temporary!);
+      } catch (_) {
+        if (mounted) _showMessage('Não foi possível remover o arquivo temporário.');
+      }
+    }
+  }
+
+  void _setPrimary(int index, {bool notify = true}) {
+    for (var i = 0; i < _galleryItems.length; i++) {
+      _galleryItems[i].isPrimary = i == index;
+    }
+    if (notify) setState(() {});
+  }
+
+  void _moveImage(int index, int offset) {
+    final target = index + offset;
+    if (target < 0 || target >= _galleryItems.length) return;
+    setState(() {
+      final item = _galleryItems.removeAt(index);
+      _galleryItems.insert(target, item);
+    });
+  }
+
+  Future<void> _previewImage(_GalleryItem item) async {
+    final initialIndex = _galleryItems.indexOf(item);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ProductGalleryViewer(
+        imagePaths: _galleryItems.map((entry) => entry.imagePath).toList(),
+        initialIndex: initialIndex < 0 ? 0 : initialIndex,
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildImageSection() {
+    final available = _availableImageSlots;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Fotos do tênis', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Text('${_galleryItems.length}/5'),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          available > 0
+              ? 'Você pode selecionar mais $available foto(s).'
+              : 'Limite de 5 fotos atingido.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (_loadingImages) ...[
+          const SizedBox(height: 12),
+          const LinearProgressIndicator(),
+        ],
+        if (_galleryItems.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 156,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _galleryItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final item = _galleryItems[index];
+                return SizedBox(
+                  width: 124,
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => _previewImage(item),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.file(
+                                  File(item.thumbnailPath),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const ColoredBox(
+                                    color: Color(0xFFE9EDF2),
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                                if (item.isPrimary)
+                                  const Positioned(
+                                    left: 6,
+                                    top: 6,
+                                    child: Chip(
+                                      visualDensity: VisualDensity.compact,
+                                      avatar: Icon(Icons.star, size: 14),
+                                      label: Text('Principal'),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: IconButton(
+                                tooltip: 'Mover para esquerda',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 40,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: index == 0 || _saving
+                                    ? null
+                                    : () => _moveImage(index, -1),
+                                icon: const Icon(Icons.chevron_left),
+                              ),
+                            ),
+                            Expanded(
+                              child: PopupMenuButton<String>(
+                                tooltip: 'Ações da foto',
+                                enabled: !_saving,
+                                padding: EdgeInsets.zero,
+                                onSelected: (value) {
+                                  if (value == 'primary') _setPrimary(index);
+                                  if (value == 'remove') _removeImage(index);
+                                  if (value == 'view') _previewImage(item);
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'view',
+                                    child: Text('Visualizar'),
+                                  ),
+                                  if (!item.isPrimary)
+                                    const PopupMenuItem(
+                                      value: 'primary',
+                                      child: Text('Definir como principal'),
+                                    ),
+                                  const PopupMenuItem(
+                                    value: 'remove',
+                                    child: Text('Remover'),
+                                  ),
+                                ],
+                                child: const SizedBox(
+                                  height: 40,
+                                  child: Center(
+                                    child: Icon(Icons.more_vert),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: IconButton(
+                                tooltip: 'Mover para direita',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 40,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: index == _galleryItems.length - 1 || _saving
+                                    ? null
+                                    : () => _moveImage(index, 1),
+                                icon: const Icon(Icons.chevron_right),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _saving || _selectingImages || available <= 0 ? null : _selectImages,
+          icon: _selectingImages
+              ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.add_photo_alternate_outlined),
+          label: Text(_selectingImages ? 'Abrindo galeria...' : 'Adicionar fotos'),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Toque na foto para visualizar. Use o menu para definir a principal ou remover e as setas para reorganizar. As mudanças só serão aplicadas ao salvar.',
+        ),
+      ],
+    );
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -299,13 +607,38 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             : _notesController.text.trim(),
       );
 
-      await _repository.save(product);
+      final savedProduct = await _repository.save(product);
+      final productId = savedProduct.id;
+      if (productId == null) {
+        throw StateError('O tênis salvo não possui identificador.');
+      }
+      if (_galleryItems.isNotEmpty || _editing) {
+        final temporary = _galleryItems
+            .where((item) => item.isTemporary)
+            .map((item) => item.temporary!)
+            .toList();
+        final primaryIndex = _galleryItems.isEmpty
+            ? -1
+            : _galleryItems.indexWhere((item) => item.isPrimary);
+        await _repository.saveImageGallery(
+          productId: productId,
+          orderedImageIds: _galleryItems
+              .map((item) => item.existing?.id)
+              .toList(),
+          temporaryImages: temporary,
+          primaryIndex: primaryIndex < 0 && _galleryItems.isNotEmpty ? 0 : primaryIndex,
+        );
+        _galleryItems.removeWhere((item) => item.isTemporary);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
+    } on ProductImageStorageException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível salvar o tênis.')),
+      _showMessage(
+        'Não foi possível salvar o tênis e suas fotos. Verifique o espaço disponível no aparelho.',
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -332,6 +665,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       color: const Color(0xFF5A6575),
                     ),
               ),
+              const SizedBox(height: 24),
+              _buildImageSection(),
               const SizedBox(height: 24),
               _buildBrandField(),
               const SizedBox(height: 16),
@@ -414,7 +749,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || _loadingImages ? null : _save,
                 icon: _saving
                     ? const SizedBox.square(
                         dimension: 20,

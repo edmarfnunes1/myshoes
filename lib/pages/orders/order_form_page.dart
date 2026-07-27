@@ -8,6 +8,7 @@ import '../../data/product_repository.dart';
 import '../../models/order.dart';
 import '../../models/order_item.dart';
 import '../../models/product.dart';
+import '../../widgets/product_thumbnail.dart';
 import '../../widgets/currency_input_formatter.dart';
 
 class OrderFormPage extends StatefulWidget {
@@ -57,7 +58,13 @@ class _OrderFormPageState extends State<OrderFormPage> {
   }
 
   Future<void> _loadData() async {
-    _products = await _productRepository.findAll();
+    // Em produção, carregamos os tênis com suas miniaturas. Nos testes e em
+    // outros consumidores que injetam um repositório, respeitamos o contrato
+    // original de findAll(), evitando que um fake herde findAllWithImages() e
+    // acesse o SQLite real por meio do ProductImageRepository.
+    _products = widget.productRepository == null
+        ? await _productRepository.findAllWithImages()
+        : await _productRepository.findAll();
 
     var order = widget.order;
     if (order?.id != null) {
@@ -979,6 +986,11 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                           return RadioListTile<Product>(
                             value: product,
                             selected: product.id == _selectedProduct?.id,
+                            secondary: ProductThumbnail(
+                              product: product,
+                              size: 48,
+                              borderRadius: 12,
+                            ),
                             title: Text('${product.brand} ${product.model}'),
                             subtitle: Text(
                               'Numerações ${product.minimumSize} a ${product.maximumSize}'

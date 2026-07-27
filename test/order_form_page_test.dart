@@ -73,16 +73,16 @@ void main() {
     WidgetTester tester, {
     String? color,
   }) async {
-    await tester.tap(find.text('Adicionar produto'));
+    await tester.tap(find.text('Adicionar tênis'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Selecionar produto'), findsOneWidget);
+    expect(find.text('Selecionar tênis'), findsOneWidget);
     await tester.tap(find.text('Nike Air Max'));
     await tester.pump();
     await tester.tap(find.text('Selecionar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Configurar produto'), findsOneWidget);
+    expect(find.text('Configurar tênis'), findsOneWidget);
     await tester.tap(find.byType(DropdownButtonFormField<int>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('39').last);
@@ -106,7 +106,7 @@ void main() {
       expect(find.text('Novo pedido'), findsOneWidget);
       expect(find.text('Cliente'), findsOneWidget);
       expect(find.text('Itens do pedido'), findsOneWidget);
-      expect(find.text('Nenhum produto adicionado.'), findsOneWidget);
+      expect(find.text('Nenhum tênis adicionado.'), findsOneWidget);
       expect(find.text('Situação do pagamento'), findsWidgets);
       expect(find.text('Salvar pedido'), findsOneWidget);
     });
@@ -120,14 +120,14 @@ void main() {
 
       final button = tester.widget<OutlinedButton>(
         find.ancestor(
-          of: find.text('Adicionar produto'),
+          of: find.text('Adicionar tênis'),
           matching: find.byType(OutlinedButton),
         ),
       );
 
       expect(button.onPressed, isNull);
       expect(
-        find.text('Cadastre um produto antes de lançar o pedido.'),
+        find.text('Cadastre um tênis antes de lançar o pedido.'),
         findsOneWidget,
       );
     });
@@ -155,13 +155,13 @@ void main() {
       await tester.tap(find.text('Salvar pedido'));
       await tester.pump();
 
-      expect(find.text('Adicione pelo menos um produto.'), findsOneWidget);
+      expect(find.text('Adicione pelo menos um tênis.'), findsOneWidget);
     });
 
     testWidgets('valida numeração na configuração do produto', (tester) async {
       await pumpPage(tester);
 
-      await tester.tap(find.text('Adicionar produto'));
+      await tester.tap(find.text('Adicionar tênis'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Nike Air Max'));
       await tester.pump();

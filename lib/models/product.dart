@@ -1,3 +1,5 @@
+import 'product_image.dart';
+
 class Product {
   const Product({
     this.id,
@@ -8,6 +10,7 @@ class Product {
     required this.costPrice,
     this.salePrice,
     this.notes,
+    this.images = const [],
   });
 
   final int? id;
@@ -18,6 +21,7 @@ class Product {
   final double costPrice;
   final double? salePrice;
   final String? notes;
+  final List<ProductImage> images;
 
   Product copyWith({
     int? id,
@@ -30,6 +34,7 @@ class Product {
     bool clearSalePrice = false,
     String? notes,
     bool clearNotes = false,
+    List<ProductImage>? images,
   }) {
     return Product(
       id: id ?? this.id,
@@ -40,6 +45,7 @@ class Product {
       costPrice: costPrice ?? this.costPrice,
       salePrice: clearSalePrice ? null : salePrice ?? this.salePrice,
       notes: clearNotes ? null : notes ?? this.notes,
+      images: images ?? this.images,
     );
   }
 

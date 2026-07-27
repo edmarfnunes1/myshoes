@@ -113,7 +113,7 @@ void main() {
       find.text('Nike Air Max · Nº 38 · Cor: Preto · Qtd. 2 · S.Caixa'),
       findsOneWidget,
     );
-    expect(find.text('2 produto(s)'), findsOneWidget);
+    expect(find.text('2 tênis'), findsOneWidget);
     expect(find.text('Pagamento'), findsOneWidget);
     expect(find.text('Pagamento total'), findsOneWidget);
     expect(find.text('R\$\u00a0300,00'), findsOneWidget);

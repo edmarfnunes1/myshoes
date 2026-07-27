@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../data/product_repository.dart';
 import '../models/product.dart';
+import '../widgets/product_thumbnail.dart';
 import 'product_form_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -53,7 +54,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Future<void> _loadProducts() async {
     if (mounted) setState(() => _loading = true);
     try {
-      final products = await _repository.findAll(
+      final products = await _repository.findAllWithImages(
         search: _searchController.text,
       );
       if (!mounted) return;
@@ -299,7 +300,7 @@ class _ProductCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ProductImage(brand: product.brand),
+                ProductThumbnail(product: product),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -407,75 +408,6 @@ class _ProductCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductImage extends StatelessWidget {
-  const _ProductImage({required this.brand});
-
-  final String brand;
-
-  static const _defaultAsset = 'assets/images/tenis_neon4.png';
-
-  static const Map<String, String> _brandAssets = {
-    'nike': 'assets/Icones/Nike.png',
-    'adidas': 'assets/Icones/Adidas.png',
-    'puma': 'assets/Icones/Puma.png',
-    'new balance': 'assets/Icones/NewBalance.png',
-    'vans': 'assets/Icones/Vans.png',
-    'lacoste': 'assets/Icones/Lacoste.png',
-    'oakley': 'assets/Icones/Oakley.png',
-    'converse': 'assets/Icones/Converse.png',
-    'asics': 'assets/Icones/Oasics.png',
-    'fila': 'assets/Icones/Fila.png',
-    'reebok': 'assets/Icones/Reebok.png',
-    'under armour': 'assets/Icones/under_armour.png',
-    'mizuno': 'assets/Icones/Mizuno.png',
-    'olympikus': 'assets/Icones/olympikus.png',
-    'skechers': 'assets/Icones/skechers.png',
-    'jordan': 'assets/Icones/Jordan.png',
-    'vert (veja)': 'assets/Icones/Veja.png',
-    'vert': 'assets/Icones/Veja.png',
-    'veja': 'assets/Icones/Veja.png',
-    'timberland': 'assets/Icones/Timberland.png',
-    'dc shoes': 'assets/Icones/dc_shoes.png',
-    'balenciaga': 'assets/Icones/balenciaga.png',
-  };
-
-  String get _brandAsset {
-    final normalizedBrand = brand.trim().toLowerCase();
-    return _brandAssets[normalizedBrand] ?? _defaultAsset;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 60,
-      height: 60,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.dark, width: 0.8),
-      ),
-      child: Image.asset(
-        _brandAsset,
-        width: 48,
-        height: 48,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => Image.asset(
-          _defaultAsset,
-          width: 48,
-          height: 48,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.directions_run_rounded,
-            color: AppColors.neon,
-            size: 32,
           ),
         ),
       ),
