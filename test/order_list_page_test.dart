@@ -166,7 +166,7 @@ void main() {
     expect(find.textContaining('S.Caixa'), findsNothing);
   });
 
-  testWidgets('exibe status Em lote e ícone de bloqueio', (tester) async {
+  testWidgets('exibe status Em lote e opção de atualizar pagamento', (tester) async {
     await pumpPage(
       tester,
       repository: FakeOrderRepository(
@@ -177,14 +177,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lote #0012'), findsOneWidget);
-    expect(
-      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
-      findsOneWidget,
-    );
-    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Atualizar pagamento'), findsOneWidget);
   });
 
-  testWidgets('pedido em lote não abre formulário para edição', (tester) async {
+  testWidgets('pedido em lote abre formulário para atualizar pagamento', (tester) async {
     var formOpened = false;
     await pumpPage(
       tester,
@@ -202,17 +201,11 @@ void main() {
     await tester.tap(find.text('Pedido #0009'));
     await tester.pumpAndSettle();
 
-    expect(formOpened, isFalse);
-    expect(find.text('Edição indevida'), findsNothing);
-    expect(
-      find.text(
-        'Este pedido já foi enviado para a fábrica e não pode ser editado.',
-      ),
-      findsOneWidget,
-    );
+    expect(formOpened, isTrue);
+    expect(find.text('Edição indevida'), findsOneWidget);
   });
 
-  testWidgets('cadeado informa que pedido em lote não pode ser alterado',
+  testWidgets('menu do pedido em lote oferece apenas atualizar pagamento',
       (tester) async {
     final repository = FakeOrderRepository(
       orders: [sampleOrder(productionBatchId: 3)],
@@ -221,18 +214,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('orders-section-production')));
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
-    );
+    await tester.tap(find.byType(PopupMenuButton<String>));
     await tester.pumpAndSettle();
 
     expect(repository.deletedId, isNull);
-    expect(
-      find.text(
-        'Este pedido já foi enviado para a fábrica e não pode ser editado ou excluído.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Atualizar pagamento'), findsOneWidget);
+    expect(find.text('Excluir'), findsNothing);
   });
 
   testWidgets('normaliza status vazio para Pendente', (tester) async {
@@ -349,11 +336,7 @@ void main() {
     expect(find.text('BRUNO'), findsOneWidget);
     expect(find.text('Lote #0012'), findsOneWidget);
     expect(find.text('ANA'), findsNothing);
-    expect(find.byType(PopupMenuButton<String>), findsNothing);
-    expect(
-      find.byTooltip('Pedido bloqueado: enviado para a fábrica'),
-      findsOneWidget,
-    );
+    expect(find.byType(PopupMenuButton<String>), findsOneWidget);
   });
 
   testWidgets('volta para Em andamento mantendo a separação dos pedidos',

@@ -45,6 +45,11 @@ void main() {
     return rows.isNotEmpty;
   }
 
+  Future<List<String>> columnNames(Database database, String tableName) async {
+    final rows = await database.rawQuery('PRAGMA table_info($tableName)');
+    return rows.map((row) => row['name'] as String).toList();
+  }
+
   Future<List<String>> indexNames(Database database, String tableName) async {
     final rows = await database.rawQuery('PRAGMA index_list($tableName)');
     return rows.map((row) => row['name'] as String).toList();
@@ -72,7 +77,7 @@ void main() {
     test('cria todas as tabelas e índices da versão atual', () async {
       final database = await openCurrentDatabase();
 
-      expect(await database.getVersion(), 9);
+      expect(await database.getVersion(), 11);
       expect(await tableExists(database, 'products'), isTrue);
       expect(await tableExists(database, 'customers'), isTrue);
       expect(await tableExists(database, 'orders'), isTrue);
@@ -80,6 +85,8 @@ void main() {
       expect(await tableExists(database, 'production_batches'), isTrue);
       expect(await tableExists(database, 'production_batch_orders'), isTrue);
       expect(await tableExists(database, 'product_images'), isTrue);
+      expect(await columnNames(database, 'products'), contains('is_active'));
+      expect(await columnNames(database, 'orders'), contains('amount_paid'));
 
       expect(
         await indexNames(database, 'order_items'),
@@ -172,7 +179,7 @@ void main() {
         whereArgs: <Object?>[10],
       );
 
-      expect(await database.getVersion(), 9);
+      expect(await database.getVersion(), 11);
       expect(products, hasLength(1));
       expect(products.single['brand'], 'Adidas');
       expect(products.single['model'], 'Campus');
@@ -261,7 +268,7 @@ void main() {
         whereArgs: <Object?>[7],
       );
 
-      expect(await database.getVersion(), 9);
+      expect(await database.getVersion(), 11);
       expect(orders, hasLength(1));
       expect(orders.single['customer_name'], 'Cliente antigo');
       expect(orders.single['customer_phone'], '44999999999');
@@ -340,7 +347,7 @@ void main() {
         whereArgs: <Object?>[20],
       );
 
-      expect(await database.getVersion(), 9);
+      expect(await database.getVersion(), 11);
       expect(order.single['created_at'], '2026-07-01');
       expect(await tableExists(database, 'production_batches'), isTrue);
       expect(await tableExists(database, 'production_batch_orders'), isTrue);

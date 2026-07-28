@@ -10,6 +10,7 @@ class Product {
     required this.costPrice,
     this.salePrice,
     this.notes,
+    this.isActive = true,
     this.images = const [],
   });
 
@@ -21,6 +22,7 @@ class Product {
   final double costPrice;
   final double? salePrice;
   final String? notes;
+  final bool isActive;
   final List<ProductImage> images;
 
   Product copyWith({
@@ -34,6 +36,7 @@ class Product {
     bool clearSalePrice = false,
     String? notes,
     bool clearNotes = false,
+    bool? isActive,
     List<ProductImage>? images,
   }) {
     return Product(
@@ -45,6 +48,7 @@ class Product {
       costPrice: costPrice ?? this.costPrice,
       salePrice: clearSalePrice ? null : salePrice ?? this.salePrice,
       notes: clearNotes ? null : notes ?? this.notes,
+      isActive: isActive ?? this.isActive,
       images: images ?? this.images,
     );
   }
@@ -58,6 +62,7 @@ class Product {
         'cost_price': costPrice,
         'sale_price': salePrice,
         'notes': notes,
+        'is_active': isActive ? 1 : 0,
       };
 
   factory Product.fromMap(Map<String, Object?> map) {
@@ -70,6 +75,7 @@ class Product {
       costPrice: (map['cost_price'] as num).toDouble(),
       salePrice: (map['sale_price'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
+      isActive: (map['is_active'] as int? ?? 1) == 1,
     );
   }
 }

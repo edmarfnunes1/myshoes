@@ -302,7 +302,31 @@ class ProductRepository {
   Future<List<ProductImage>> getImagesByProductId(int productId) =>
       _imageRepository.getImagesByProductId(productId);
 
+  Future<bool> hasRelationships(int productId) async {
+    final database = await _database.database;
+    final rows = await database.rawQuery(
+      'SELECT EXISTS(SELECT 1 FROM order_items WHERE product_id = ? LIMIT 1) AS linked',
+      [productId],
+    );
+    return (rows.first['linked'] as int? ?? 0) == 1;
+  }
+
+  Future<void> setActive(int productId, bool isActive) async {
+    final database = await _database.database;
+    await database.update(
+      'products',
+      {'is_active': isActive ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [productId],
+    );
+  }
+
   Future<void> delete(int id) async {
+    if (await hasRelationships(id)) {
+      throw StateError(
+        'Este tênis possui pedidos vinculados e não pode ser excluído.',
+      );
+    }
     // Remove primeiro os arquivos físicos e os registros de imagens.
     // A exclusão dos registros também seria feita por CASCADE, mas a chamada
     // explícita é necessária para limpar a pasta interna do aplicativo.

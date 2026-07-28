@@ -107,6 +107,49 @@ void main() {
       expect(await repository.findAll(), isEmpty);
     });
 
+    test('desativa e reativa um tênis sem apagar o cadastro', () async {
+      final saved = await repository.save(product());
+
+      await repository.setActive(saved.id!, false);
+      final inactive = await repository.findByIdWithImages(saved.id!);
+
+      expect(inactive, isNotNull);
+      expect(inactive!.isActive, isFalse);
+
+      await repository.setActive(saved.id!, true);
+      final active = await repository.findByIdWithImages(saved.id!);
+
+      expect(active!.isActive, isTrue);
+    });
+
+    test('impede excluir tênis vinculado a pedido', () async {
+      final saved = await repository.save(product());
+      final database = await appDatabase.database;
+      final orderId = await database.insert('orders', <String, Object?>{
+        'customer_name': 'Cliente',
+        'customer_phone': null,
+        'payment_status': 'Pendente',
+        'notes': null,
+        'created_at': '2026-07-28',
+      });
+      await database.insert('order_items', <String, Object?>{
+        'order_id': orderId,
+        'product_id': saved.id,
+        'shoe_size': 40,
+        'color': null,
+        'quantity': 1,
+        'with_box': 0,
+        'unit_price': 220.0,
+      });
+
+      expect(await repository.hasRelationships(saved.id!), isTrue);
+      expect(
+        () => repository.delete(saved.id!),
+        throwsA(isA<StateError>()),
+      );
+      expect(await repository.findByIdWithImages(saved.id!), isNotNull);
+    });
+
     test('busca um tênis pelo id', () async {
       final saved = await repository.save(
         product(brand: 'Puma', model: 'Suede Classic'),
@@ -228,6 +271,19 @@ void main() {
       expect(products, hasLength(1));
       expect(products.single.brand, 'Fila');
       expect(products.single.images, isEmpty);
+    });
+
+
+    test('mantém tênis inativo na listagem administrativa', () async {
+      final saved = await repository.save(product(model: 'Descontinuado'));
+      await repository.setActive(saved.id!, false);
+      final products = await repository.findAll();
+      expect(products.single.isActive, isFalse);
+    });
+
+    test('tênis sem pedidos não possui relacionamentos', () async {
+      final saved = await repository.save(product());
+      expect(await repository.hasRelationships(saved.id!), isFalse);
     });
   });
 }

@@ -108,6 +108,11 @@ class OrderRepository {
         );
       }
       final values = order.toMap()..remove('id');
+      values['amount_paid'] = switch (order.paymentStatus) {
+        'Pago' => order.totalValue,
+        'Parcial' => order.amountPaid,
+        _ => 0.0,
+      };
       late final int orderId;
 
       if (order.id == null) {
@@ -134,6 +139,34 @@ class OrderRepository {
         await transaction.insert('order_items', itemValues);
       }
     });
+  }
+
+  Future<void> updatePayment({
+    required int orderId,
+    required String? paymentStatus,
+    required double amountPaid,
+  }) async {
+    final database = await _database.database;
+    final rows = await database.query(
+      'orders',
+      columns: ['id'],
+      where: 'id = ?',
+      whereArgs: [orderId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      throw StateError('Pedido não encontrado.');
+    }
+
+    await database.update(
+      'orders',
+      {
+        'payment_status': paymentStatus,
+        'amount_paid': amountPaid,
+      },
+      where: 'id = ?',
+      whereArgs: [orderId],
+    );
   }
 
   Future<void> delete(int id) async {

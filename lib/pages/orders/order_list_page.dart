@@ -104,13 +104,6 @@ class _OrderListPageState extends State<OrderListPage> {
   }
 
   Future<void> _open([Order? order]) async {
-    if (order?.isInProductionBatch == true) {
-      _showLockedOrderMessage(
-        'Este pedido já foi enviado para a fábrica e não pode ser editado.',
-      );
-      return;
-    }
-
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -126,7 +119,9 @@ class _OrderListPageState extends State<OrderListPage> {
             content: Text(
               order == null
                   ? 'Pedido cadastrado com sucesso.'
-                  : 'Pedido atualizado com sucesso.',
+                  : order.isInProductionBatch
+                      ? 'Pagamento atualizado com sucesso.'
+                      : 'Pedido atualizado com sucesso.',
             ),
           ),
         );
@@ -511,15 +506,20 @@ class _OrderListPageState extends State<OrderListPage> {
             ),
             const SizedBox(height: 2),
             if (order.isInProductionBatch)
-              IconButton(
-                tooltip: 'Pedido bloqueado: enviado para a fábrica',
-                onPressed: () => _showLockedOrderMessage(
-                  'Este pedido já foi enviado para a fábrica e não pode ser editado ou excluído.',
-                ),
+              PopupMenuButton<String>(
+                tooltip: 'Opções do pedido',
+                padding: EdgeInsets.zero,
                 icon: const Icon(
-                  Icons.lock_outline_rounded,
+                  Icons.more_horiz,
                   color: Color(0xFF5C6675),
                 ),
+                onSelected: (_) => _open(order),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'payment',
+                    child: Text('Atualizar pagamento'),
+                  ),
+                ],
               )
             else
               PopupMenuButton<String>(
@@ -570,24 +570,46 @@ class _OrderListPageState extends State<OrderListPage> {
     ThemeData theme,
     String status,
   ) {
-    return Row(
+    final remaining = (order.totalValue - order.amountPaid)
+        .clamp(0, order.totalValue)
+        .toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: _footerPill(
-            theme: theme,
-            label: 'Pagamento',
-            value: status,
-            icon: _statusIcon(status),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _footerPill(
+                theme: theme,
+                label: 'Pagamento',
+                value: status,
+                icon: _statusIcon(status),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _footerPill(
+                theme: theme,
+                label: 'Pagamento total',
+                value: _currency.format(order.totalValue),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: _footerPill(
-            theme: theme,
-            label: 'Pagamento total',
-            value: _currency.format(order.totalValue),
+        if (status == 'Parcial') ...[
+          const SizedBox(height: 8),
+          Text(
+            'Pago: ${_currency.format(order.amountPaid)} de ${_currency.format(order.totalValue)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
+          const SizedBox(height: 2),
+          Text(
+            'Restante: ${_currency.format(remaining)}',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ],
     );
   }

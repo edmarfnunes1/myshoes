@@ -35,6 +35,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
   final _customerNameController = TextEditingController();
   final _customerPhoneController = TextEditingController();
   final _notesController = TextEditingController();
+  final _amountPaidController = TextEditingController();
   final _currency = NumberFormat.currency(
     locale: 'pt_BR',
     symbol: 'R\$',
@@ -49,6 +50,8 @@ class _OrderFormPageState extends State<OrderFormPage> {
   bool _openingContacts = false;
 
   static const _statuses = ['Pendente', 'Pago', 'Parcial'];
+
+  bool get _paymentOnly => widget.order?.isInProductionBatch == true;
 
   @override
   void initState() {
@@ -77,11 +80,17 @@ class _OrderFormPageState extends State<OrderFormPage> {
       _customerPhoneController.text = order.customerPhone ?? '';
       _items = List<OrderItem>.from(order.items);
       _paymentStatus = order.paymentStatus;
+      if (order.amountPaid > 0) {
+        _amountPaidController.text = _currency.format(order.amountPaid);
+      }
       _notesController.text = order.notes ?? '';
     }
 
     if (mounted) setState(() => _loading = false);
   }
+
+  List<Product> get _activeProducts =>
+      _products.where((product) => product.isActive).toList(growable: false);
 
   Product? _productById(int productId) {
     for (final product in _products) {
@@ -95,7 +104,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _ProductPickerSheet(products: _products),
+      builder: (context) => _ProductPickerSheet(products: _activeProducts),
     );
     if (product == null || !mounted) return;
 
@@ -218,21 +227,30 @@ class _OrderFormPageState extends State<OrderFormPage> {
 
     setState(() => _saving = true);
     try {
-      await _orderRepository.save(
-        Order(
-          id: widget.order?.id,
-          customerName: _customerNameController.text.trim(),
-          customerPhone: _customerPhoneController.text.trim().isEmpty
-              ? null
-              : _customerPhoneController.text.trim(),
-          items: _items,
+      if (_paymentOnly) {
+        await _orderRepository.updatePayment(
+          orderId: widget.order!.id!,
           paymentStatus: _paymentStatus,
-          notes: _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
-          createdAt: widget.order?.createdAt,
-        ),
-      );
+          amountPaid: _resolvedAmountPaid,
+        );
+      } else {
+        await _orderRepository.save(
+          Order(
+            id: widget.order?.id,
+            customerName: _customerNameController.text.trim(),
+            customerPhone: _customerPhoneController.text.trim().isEmpty
+                ? null
+                : _customerPhoneController.text.trim(),
+            items: _items,
+            paymentStatus: _paymentStatus,
+            amountPaid: _resolvedAmountPaid,
+            notes: _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
+            createdAt: widget.order?.createdAt,
+          ),
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (_) {
       if (mounted) {
@@ -247,11 +265,34 @@ class _OrderFormPageState extends State<OrderFormPage> {
 
   double get _total => _items.fold(0, (sum, item) => sum + item.total);
 
+  double get _resolvedAmountPaid {
+    switch (_paymentStatus) {
+      case 'Pago':
+        return _total;
+      case 'Parcial':
+        return CurrencyInputFormatter.parse(_amountPaidController.text) ?? 0;
+      default:
+        return 0;
+    }
+  }
+
+  void _changePaymentStatus(String? value) {
+    setState(() {
+      _paymentStatus = value;
+      if (value == 'Pendente') {
+        _amountPaidController.clear();
+      } else if (value == 'Pago') {
+        _amountPaidController.text = _currency.format(_total);
+      }
+    });
+  }
+
   @override
   void dispose() {
     _customerNameController.dispose();
     _customerPhoneController.dispose();
     _notesController.dispose();
+    _amountPaidController.dispose();
     super.dispose();
   }
 
@@ -259,7 +300,13 @@ class _OrderFormPageState extends State<OrderFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.order == null ? 'Novo pedido' : 'Editar pedido'),
+        title: Text(
+          widget.order == null
+              ? 'Novo pedido'
+              : _paymentOnly
+                  ? 'Atualizar pagamento'
+                  : 'Editar pedido',
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -268,6 +315,29 @@ class _OrderFormPageState extends State<OrderFormPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
+                  if (_paymentOnly) ...[
+                    Container(
+                      key: const Key('production-payment-only-notice'),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.lock_outline_rounded),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Este pedido já foi enviado para produção. Os itens não podem mais ser alterados, mas as informações de pagamento continuam disponíveis.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   _sectionTitle(context, 'Cliente'),
                   const SizedBox(height: 12),
                   Row(
@@ -276,6 +346,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
                       Expanded(
                         child: TextFormField(
                           controller: _customerNameController,
+                          enabled: !_paymentOnly,
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(
                             labelText: 'Nome *',
@@ -293,7 +364,9 @@ class _OrderFormPageState extends State<OrderFormPage> {
                         height: 58,
                         child: IconButton.filledTonal(
                           tooltip: 'Selecionar da agenda',
-                          onPressed: _openingContacts ? null : _pickContact,
+                          onPressed: _paymentOnly || _openingContacts
+                              ? null
+                              : _pickContact,
                           icon: _openingContacts
                               ? const SizedBox.square(
                                   dimension: 20,
@@ -309,6 +382,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _customerPhoneController,
+                    enabled: !_paymentOnly,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Telefone',
@@ -351,21 +425,24 @@ class _OrderFormPageState extends State<OrderFormPage> {
                         child: _OrderItemCard(
                           item: item,
                           currency: _currency,
+                          editable: !_paymentOnly,
                           onEdit: () => _editItem(index),
                           onDelete: () => setState(() => _items.removeAt(index)),
                         ),
                       );
                     }),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _products.isEmpty ? null : _addItem,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar tênis'),
+                  if (!_paymentOnly) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _activeProducts.isEmpty ? null : _addItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar tênis'),
+                      ),
                     ),
-                  ),
-                  if (_products.isEmpty) ...[
+                  ],
+                  if (!_paymentOnly && _activeProducts.isEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Cadastre um tênis antes de lançar o pedido.',
@@ -467,15 +544,41 @@ class _OrderFormPageState extends State<OrderFormPage> {
                               ),
                             )
                             .toList(),
-                        onSelected: (value) =>
-                            setState(() => _paymentStatus = value),
+                        onSelected: _changePaymentStatus,
                       );
                     },
                   ),
+                  if (_paymentStatus == 'Parcial') ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const Key('order-amount-paid-field'),
+                      controller: _amountPaidController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [CurrencyInputFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: 'Valor pago *',
+                        prefixIcon: Icon(Icons.payments_outlined),
+                      ),
+                      validator: (value) {
+                        if (_paymentStatus != 'Parcial') return null;
+                        final amount = CurrencyInputFormatter.parse(value ?? '');
+                        if (amount == null || amount <= 0) {
+                          return 'Informe um valor pago maior que R\$ 0,00.';
+                        }
+                        if (amount >= _total) {
+                          return 'O valor pago deve ser menor que o total do pedido.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _notesController,
-                    maxLines: 4,
+                    enabled: !_paymentOnly,
+                    maxLines: 2,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: const InputDecoration(
                       labelText: 'Observações',
@@ -492,7 +595,13 @@ class _OrderFormPageState extends State<OrderFormPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.save_outlined),
-                    label: Text(_saving ? 'Salvando...' : 'Salvar pedido'),
+                    label: Text(
+                      _saving
+                          ? 'Salvando...'
+                          : _paymentOnly
+                              ? 'Atualizar pagamento'
+                              : 'Salvar pedido',
+                    ),
                   ),
                 ],
               ),
@@ -514,12 +623,14 @@ class _OrderItemCard extends StatelessWidget {
   const _OrderItemCard({
     required this.item,
     required this.currency,
+    required this.editable,
     required this.onEdit,
     required this.onDelete,
   });
 
   final OrderItem item;
   final NumberFormat currency;
+  final bool editable;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -566,16 +677,19 @@ class _OrderItemCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') onEdit();
-                    if (value == 'delete') onDelete();
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Editar item')),
-                    PopupMenuItem(value: 'delete', child: Text('Remover item')),
-                  ],
-                ),
+                if (editable)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') onEdit();
+                      if (value == 'delete') onDelete();
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Editar item')),
+                      PopupMenuItem(value: 'delete', child: Text('Remover item')),
+                    ],
+                  )
+                else
+                  const Icon(Icons.lock_outline_rounded),
               ],
             ),
             const Divider(height: 24),

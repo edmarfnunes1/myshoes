@@ -7,6 +7,7 @@ class Order {
     this.customerPhone,
     required this.items,
     this.paymentStatus,
+    this.amountPaid = 0,
     this.notes,
     this.createdAt,
     this.productionBatchId,
@@ -17,6 +18,7 @@ class Order {
   final String? customerPhone;
   final List<OrderItem> items;
   final String? paymentStatus;
+  final double amountPaid;
   final String? notes;
   final DateTime? createdAt;
   final int? productionBatchId;
@@ -31,6 +33,7 @@ class Order {
         'customer_name': customerName,
         'customer_phone': customerPhone,
         'payment_status': paymentStatus,
+        'amount_paid': amountPaid,
         'notes': notes,
         'created_at': _dateOnly(createdAt ?? DateTime.now()),
       };
@@ -54,6 +57,7 @@ class Order {
       customerPhone: map['customer_phone'] as String?,
       items: items,
       paymentStatus: map['payment_status'] as String?,
+      amountPaid: (map['amount_paid'] as num?)?.toDouble() ?? 0,
       notes: map['notes'] as String?,
       createdAt: DateTime.tryParse(map['created_at'] as String? ?? ''),
       productionBatchId: map['production_batch_id'] as int?,

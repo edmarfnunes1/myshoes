@@ -111,12 +111,47 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<void> _confirmDelete(Product product) async {
+    final productId = product.id;
+    if (productId == null) return;
+
+    final hasRelationships = await _repository.hasRelationships(productId);
+    if (!mounted) return;
+
+    if (hasRelationships) {
+      final deactivate = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Não é possível excluir'),
+          content: const Text(
+            'Este tênis já possui pedidos ou lotes vinculados e não pode ser excluído.\n\n'
+            'Você pode desativá-lo para impedir que seja utilizado em novos pedidos.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Desativar tênis'),
+            ),
+          ],
+        ),
+      );
+
+      if (deactivate == true) {
+        await _setProductActive(product, false);
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir tênis?'),
-        content: Text(
-          'O tênis ${product.brand} ${product.model} será removido definitivamente.',
+        content: const Text(
+          'Deseja realmente excluir este tênis?\n'
+          'Esta ação não poderá ser desfeita.',
         ),
         actions: [
           TextButton(
@@ -135,12 +170,28 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ),
     );
 
-    if (confirmed != true || product.id == null) return;
-    await _repository.delete(product.id!);
+    if (confirmed != true) return;
+    await _repository.delete(productId);
     await _loadProducts();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Tênis excluído.')),
+    );
+  }
+
+  Future<void> _setProductActive(Product product, bool isActive) async {
+    final productId = product.id;
+    if (productId == null) return;
+
+    await _repository.setActive(productId, isActive);
+    await _loadProducts();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isActive ? 'Tênis reativado.' : 'Tênis desativado.',
+        ),
+      ),
     );
   }
 
@@ -211,6 +262,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
           onTap: () => _openForm(_products[index]),
           onEdit: () => _openForm(_products[index]),
           onDelete: () => _confirmDelete(_products[index]),
+          onToggleActive: () => _setProductActive(
+            _products[index],
+            !_products[index].isActive,
+          ),
           onOpenGallery: _products[index].images.isEmpty
               ? null
               : () => _openGallery(_products[index]),
@@ -277,6 +332,7 @@ class _ProductCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggleActive,
     required this.onOpenGallery,
   });
 
@@ -285,6 +341,7 @@ class _ProductCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onToggleActive;
   final VoidCallback? onOpenGallery;
 
   @override
@@ -371,6 +428,31 @@ class _ProductCard extends StatelessWidget {
                               height: 1.0,
                             ),
                       ),
+                      if (!product.isActive) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2F4F7),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF667085),
+                              width: .8,
+                            ),
+                          ),
+                          child: const Text(
+                            'Inativo',
+                            style: TextStyle(
+                              color: Color(0xFF475467),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 7,
@@ -419,10 +501,11 @@ class _ProductCard extends StatelessWidget {
                   ),
                   onSelected: (value) {
                     if (value == 'edit') onEdit();
+                    if (value == 'toggle-active') onToggleActive();
                     if (value == 'delete') onDelete();
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
@@ -433,6 +516,25 @@ class _ProductCard extends StatelessWidget {
                       ),
                     ),
                     PopupMenuItem(
+                      value: 'toggle-active',
+                      child: Row(
+                        children: [
+                          Icon(
+                            product.isActive
+                                ? Icons.block_rounded
+                                : Icons.refresh_rounded,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            product.isActive
+                                ? 'Desativar tênis'
+                                : 'Reativar tênis',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
                       value: 'delete',
                       child: Row(
                         children: [

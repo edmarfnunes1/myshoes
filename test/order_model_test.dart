@@ -107,5 +107,28 @@ void main() {
 
       expect(order.createdAt, isNull);
     });
+
+    test('persiste e recupera o valor pago', () {
+      const order = Order(
+        customerName: 'Cliente',
+        items: [],
+        paymentStatus: 'Parcial',
+        amountPaid: 150,
+      );
+
+      expect(order.toMap()['amount_paid'], 150);
+
+      final restored = Order.fromMap({
+        'customer_name': 'Cliente',
+        'payment_status': 'Parcial',
+        'amount_paid': 150.0,
+      });
+      expect(restored.amountPaid, 150);
+    });
+
+    test('valor pago antigo assume zero quando a coluna não existe no mapa', () {
+      final order = Order.fromMap({'customer_name': 'Cliente'});
+      expect(order.amountPaid, 0);
+    });
   });
 }

@@ -24,6 +24,7 @@ void main() {
     expect(result.costPrice, 80);
     expect(result.salePrice, 120);
     expect(result.notes, 'Teste');
+    expect(result.isActive, isTrue);
   });
 
 
@@ -50,5 +51,23 @@ void main() {
     expect(changed.model, 'Air Max Plus');
     expect(changed.salePrice, isNull);
     expect(changed.notes, isNull);
+    expect(changed.isActive, isTrue);
   });
+
+  test('converte status inativo para mapa e retorna corretamente', () {
+  const product = Product(
+    id: 2,
+    brand: 'Adidas',
+    model: 'Campus',
+    minimumSize: 34,
+    maximumSize: 44,
+    costPrice: 100,
+    isActive: false,
+  );
+
+  final result = Product.fromMap(product.toMap());
+
+  expect(product.toMap()['is_active'], 0);
+  expect(result.isActive, isFalse);
+});
 }

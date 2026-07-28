@@ -607,6 +607,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        isActive: widget.product?.isActive ?? true,
       );
 
       final savedProduct = await _repository.save(product);

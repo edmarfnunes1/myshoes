@@ -421,5 +421,42 @@ void main() {
       expect(found.totalQuantity, 0);
       expect(found.totalValue, 0);
     });
+
+
+    test('persiste valor pago parcial', () async {
+      await orderRepository.save(Order(customerName: 'Cliente parcial', paymentStatus: 'Parcial', amountPaid: 75, createdAt: DateTime(2026, 7, 28), items: [item(quantity: 2, unitPrice: 100)]));
+      final saved = (await orderRepository.findAll()).single;
+      expect(saved.amountPaid, 75);
+      expect(saved.totalValue, 200);
+    });
+
+    test('normaliza pagamento Pendente para zero', () async {
+      await orderRepository.save(Order(customerName: 'Cliente pendente', paymentStatus: 'Pendente', amountPaid: 99, createdAt: DateTime(2026, 7, 28), items: [item()]));
+      final saved = (await orderRepository.findAll()).single;
+      expect(saved.amountPaid, 0);
+    });
+
+    test('normaliza pagamento Pago para o total', () async {
+      await orderRepository.save(Order(customerName: 'Cliente pago', paymentStatus: 'Pago', amountPaid: 1, createdAt: DateTime(2026, 7, 28), items: [item(quantity: 2, unitPrice: 180)]));
+      final saved = (await orderRepository.findAll()).single;
+      expect(saved.amountPaid, 360);
+    });
+
+    test('atualiza somente pagamento de pedido em produção', () async {
+      final saved = await saveOrder(customerName: 'Cliente original', customerPhone: '44999990000', notes: 'Não alterar', items: [item(shoeSize: 39, quantity: 2, unitPrice: 180)]);
+      final batchId = await sendToFactory(saved.id!);
+      await orderRepository.updatePayment(orderId: saved.id!, paymentStatus: 'Parcial', amountPaid: 150);
+      final updated = await orderRepository.findById(saved.id!);
+      expect(updated!.paymentStatus, 'Parcial');
+      expect(updated.amountPaid, 150);
+      expect(updated.customerName, 'Cliente original');
+      expect(updated.notes, 'Não alterar');
+      expect(updated.productionBatchId, batchId);
+      expect(updated.items.single.quantity, 2);
+    });
+
+    test('não atualiza pagamento de pedido inexistente', () async {
+      await expectLater(orderRepository.updatePayment(orderId: 999999, paymentStatus: 'Pago', amountPaid: 100), throwsA(isA<StateError>()));
+    });
   });
 }

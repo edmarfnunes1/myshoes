@@ -34,7 +34,7 @@ class AppDatabase {
     return factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 9,
+        version: 11,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
         },
@@ -75,6 +75,14 @@ class AppDatabase {
           if (oldVersion < 9) {
             await _createProductImagesTable(database);
           }
+          if (oldVersion < 10) {
+            await database.execute(
+              'ALTER TABLE products ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+            );
+          }
+          if (oldVersion < 11) {
+            await _migrateAmountPaid(database);
+          }
         },
       ),
     );
@@ -96,7 +104,8 @@ class AppDatabase {
         maximum_size INTEGER NOT NULL,
         cost_price REAL NOT NULL,
         sale_price REAL,
-        notes TEXT
+        notes TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
       )
     ''');
   }
@@ -130,13 +139,20 @@ class AppDatabase {
     ''');
   }
 
-  Future<void> _createOrdersTable(DatabaseExecutor database) async {
+  Future<void> _createOrdersTable(
+    DatabaseExecutor database, {
+    bool includeAmountPaid = true,
+  }) async {
+    final amountPaidColumn = includeAmountPaid
+        ? 'amount_paid REAL NOT NULL DEFAULT 0,'
+        : '';
     await database.execute('''
       CREATE TABLE orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customer_name TEXT NOT NULL,
         customer_phone TEXT,
         payment_status TEXT,
+        $amountPaidColumn
         notes TEXT,
         created_at TEXT NOT NULL
       )
@@ -212,7 +228,7 @@ class AppDatabase {
   Future<void> _migrateOrdersToItems(Database database) async {
     await database.transaction((transaction) async {
       await transaction.execute('ALTER TABLE orders RENAME TO orders_old');
-      await _createOrdersTable(transaction);
+      await _createOrdersTable(transaction, includeAmountPaid: false);
       await _createOrderItemsTable(transaction, includeColor: false);
 
       await transaction.execute('''
@@ -235,6 +251,45 @@ class AppDatabase {
 
       await transaction.execute('DROP TABLE orders_old');
     });
+  }
+
+  Future<void> _migrateAmountPaid(Database database) async {
+    if (!await _tableExists(database, 'orders')) return;
+
+    if (!await _columnExists(database, 'orders', 'amount_paid')) {
+      await database.execute(
+        'ALTER TABLE orders ADD COLUMN amount_paid REAL NOT NULL DEFAULT 0',
+      );
+    }
+
+    if (!await _tableExists(database, 'order_items')) return;
+
+    await database.execute('''
+      UPDATE orders
+      SET amount_paid = COALESCE((
+        SELECT SUM(quantity * unit_price)
+        FROM order_items
+        WHERE order_id = orders.id
+      ), 0)
+      WHERE LOWER(COALESCE(payment_status, '')) = 'pago'
+    ''');
+  }
+
+  Future<bool> _tableExists(DatabaseExecutor database, String table) async {
+    final result = await database.rawQuery(
+      'SELECT 1 FROM sqlite_master WHERE type = ? AND name = ? LIMIT 1',
+      ['table', table],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<bool> _columnExists(
+    DatabaseExecutor database,
+    String table,
+    String column,
+  ) async {
+    final columns = await database.rawQuery('PRAGMA table_info($table)');
+    return columns.any((row) => row['name'] == column);
   }
 
   Future<void> _createProductImagesTable(DatabaseExecutor database) async {

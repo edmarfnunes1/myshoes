@@ -15,6 +15,9 @@ class FakeOrderRepository extends OrderRepository {
   final Order? orderToLoad;
   final bool throwOnSave;
   Order? savedOrder;
+  int? paymentOrderId;
+  String? updatedPaymentStatus;
+  double? updatedAmountPaid;
 
   @override
   Future<Order?> findById(int id) async => orderToLoad;
@@ -23,6 +26,17 @@ class FakeOrderRepository extends OrderRepository {
   Future<void> save(Order order) async {
     if (throwOnSave) throw Exception('falha ao salvar');
     savedOrder = order;
+  }
+
+  @override
+  Future<void> updatePayment({
+    required int orderId,
+    required String? paymentStatus,
+    required double amountPaid,
+  }) async {
+    paymentOrderId = orderId;
+    updatedPaymentStatus = paymentStatus;
+    updatedAmountPaid = amountPaid;
   }
 }
 
@@ -97,6 +111,15 @@ void main() {
     }
 
     await tester.tap(find.text('Adicionar'));
+    await tester.pumpAndSettle();
+  }
+
+
+
+  Future<void> selectPaymentStatus(WidgetTester tester, String status) async {
+    await tester.tap(find.text('Situação do pagamento').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(status).last);
     await tester.pumpAndSettle();
   }
 
@@ -419,5 +442,127 @@ void main() {
 
   });
 
+
+  group('OrderFormPage - pagamento parcial', () {
+    testWidgets('exibe valor pago somente para situação Parcial', (tester) async {
+      await pumpPage(tester);
+      expect(find.byKey(const Key('order-amount-paid-field')), findsNothing);
+      await selectPaymentStatus(tester, 'Parcial');
+      expect(find.byKey(const Key('order-amount-paid-field')), findsOneWidget);
+      await selectPaymentStatus(tester, 'Pendente');
+      expect(find.byKey(const Key('order-amount-paid-field')), findsNothing);
+    });
+
+    testWidgets('exige valor parcial maior que zero', (tester) async {
+      await pumpPage(tester);
+      await addProduct(tester);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nome *'), 'Cliente parcial');
+      await selectPaymentStatus(tester, 'Parcial');
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pump();
+      expect(find.text(r'Informe um valor pago maior que R$ 0,00.'), findsOneWidget);
+    });
+
+    testWidgets('impede valor parcial igual ao total', (tester) async {
+      await pumpPage(tester);
+      await addProduct(tester);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nome *'), 'Cliente parcial');
+      await selectPaymentStatus(tester, 'Parcial');
+      await tester.enterText(find.byKey(const Key('order-amount-paid-field')), '350,00');
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pump();
+      expect(find.text('O valor pago deve ser menor que o total do pedido.'), findsOneWidget);
+    });
+
+    testWidgets('salva valor parcial informado', (tester) async {
+      final repository = FakeOrderRepository();
+      await pumpPage(tester, orderRepository: repository);
+      await addProduct(tester);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nome *'), 'Cliente parcial');
+      await selectPaymentStatus(tester, 'Parcial');
+      await tester.enterText(find.byKey(const Key('order-amount-paid-field')), '150,00');
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pumpAndSettle();
+      expect(repository.savedOrder?.paymentStatus, 'Parcial');
+      expect(repository.savedOrder?.amountPaid, 150);
+    });
+
+    testWidgets('salva zero ao voltar para Pendente', (tester) async {
+      final repository = FakeOrderRepository();
+      await pumpPage(tester, orderRepository: repository);
+      await addProduct(tester);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nome *'), 'Cliente pendente');
+      await selectPaymentStatus(tester, 'Parcial');
+      await tester.enterText(find.byKey(const Key('order-amount-paid-field')), '150,00');
+      await selectPaymentStatus(tester, 'Pendente');
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pumpAndSettle();
+      expect(repository.savedOrder?.amountPaid, 0);
+    });
+
+    testWidgets('salva o total automaticamente como Pago', (tester) async {
+      final repository = FakeOrderRepository();
+      await pumpPage(tester, orderRepository: repository);
+      await addProduct(tester);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Nome *'), 'Cliente pago');
+      await selectPaymentStatus(tester, 'Pago');
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pumpAndSettle();
+      expect(repository.savedOrder?.amountPaid, 350);
+    });
+  });
+
+  testWidgets('não permite selecionar tênis inativo', (tester) async {
+    const inactiveProduct = Product(id: 9, brand: 'Nike', model: 'Descontinuado', minimumSize: 34, maximumSize: 44, costPrice: 100, salePrice: 200, isActive: false);
+    await pumpPage(tester, productRepository: FakeProductRepository(products: [inactiveProduct]));
+    final button = tester.widget<OutlinedButton>(find.ancestor(of: find.text('Adicionar tênis'), matching: find.byType(OutlinedButton)));
+    expect(button.onPressed, isNull);
+  });
+
+
+  testWidgets('pedido em produção permite alterar somente o pagamento',
+      (tester) async {
+    final repository = FakeOrderRepository();
+    final order = Order(
+      id: 8,
+      customerName: 'Cliente bloqueado',
+      items: const [
+        OrderItem(
+          productId: 1,
+          shoeSize: 39,
+          quantity: 1,
+          withBox: false,
+          unitPrice: 300,
+          productName: 'Nike Air Max',
+        ),
+      ],
+      paymentStatus: 'Pendente',
+      productionBatchId: 2,
+    );
+
+    await pumpPage(tester, orderRepository: repository, order: order);
+
+    expect(find.text('Atualizar pagamento'), findsWidgets);
+    expect(find.byKey(const Key('production-payment-only-notice')), findsOneWidget);
+    expect(find.text('Adicionar tênis'), findsNothing);
+    expect(find.text('Editar item'), findsNothing);
+
+    await tester.tap(find.text('Situação do pagamento').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pago').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Atualizar pagamento'));
+    await tester.pumpAndSettle();
+
+    expect(repository.paymentOrderId, 8);
+    expect(repository.updatedPaymentStatus, 'Pago');
+    expect(repository.updatedAmountPaid, 300);
+    expect(repository.savedOrder, isNull);
+  });
 
 }
