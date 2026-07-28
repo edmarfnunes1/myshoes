@@ -77,7 +77,7 @@ void main() {
     test('cria todas as tabelas e índices da versão atual', () async {
       final database = await openCurrentDatabase();
 
-      expect(await database.getVersion(), 11);
+      expect(await database.getVersion(), 13);
       expect(await tableExists(database, 'products'), isTrue);
       expect(await tableExists(database, 'customers'), isTrue);
       expect(await tableExists(database, 'orders'), isTrue);
@@ -85,6 +85,11 @@ void main() {
       expect(await tableExists(database, 'production_batches'), isTrue);
       expect(await tableExists(database, 'production_batch_orders'), isTrue);
       expect(await tableExists(database, 'product_images'), isTrue);
+      expect(await tableExists(database, 'app_settings'), isTrue);
+      expect(
+        await columnNames(database, 'order_items'),
+        containsAll(<String>['box_fee_unit', 'cost_price_unit']),
+      );
       expect(await columnNames(database, 'products'), contains('is_active'));
       expect(await columnNames(database, 'orders'), contains('amount_paid'));
 
@@ -179,7 +184,7 @@ void main() {
         whereArgs: <Object?>[10],
       );
 
-      expect(await database.getVersion(), 11);
+      expect(await database.getVersion(), 13);
       expect(products, hasLength(1));
       expect(products.single['brand'], 'Adidas');
       expect(products.single['model'], 'Campus');
@@ -268,7 +273,7 @@ void main() {
         whereArgs: <Object?>[7],
       );
 
-      expect(await database.getVersion(), 11);
+      expect(await database.getVersion(), 13);
       expect(orders, hasLength(1));
       expect(orders.single['customer_name'], 'Cliente antigo');
       expect(orders.single['customer_phone'], '44999999999');
@@ -347,7 +352,7 @@ void main() {
         whereArgs: <Object?>[20],
       );
 
-      expect(await database.getVersion(), 11);
+      expect(await database.getVersion(), 13);
       expect(order.single['created_at'], '2026-07-01');
       expect(await tableExists(database, 'production_batches'), isTrue);
       expect(await tableExists(database, 'production_batch_orders'), isTrue);

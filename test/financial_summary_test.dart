@@ -7,9 +7,9 @@ void main() {
   group('FinancialSummary', () {
     test('calcula valores e quantidades por situação de pagamento', () {
       final orders = [
-        _order(status: 'Pago', total: 100),
-        _order(status: 'Parcial', total: 200, amountPaid: 80),
-        _order(status: 'Pendente', total: 300),
+        _order(status: 'Pago', total: 100, shoeCost: 50, boxCost: 5),
+        _order(status: 'Parcial', total: 200, amountPaid: 80, shoeCost: 100),
+        _order(status: 'Pendente', total: 300, shoeCost: 150, boxCost: 5),
       ];
 
       final summary = FinancialSummary.fromOrders(orders);
@@ -17,6 +17,10 @@ void main() {
       expect(summary.received, 180);
       expect(summary.pending, 420);
       expect(summary.totalSales, 600);
+      expect(summary.shoeCost, 300);
+      expect(summary.boxCost, 10);
+      expect(summary.totalCost, 310);
+      expect(summary.profit, 290);
       expect(summary.orders, 3);
       expect(summary.paidOrders, 1);
       expect(summary.partialOrders, 1);
@@ -52,6 +56,8 @@ Order _order({
   required String? status,
   required double total,
   double amountPaid = 0,
+  double shoeCost = 0,
+  double boxCost = 0,
 }) {
   return Order(
     customerName: 'Cliente',
@@ -65,7 +71,9 @@ Order _order({
         shoeSize: 40,
         quantity: 1,
         unitPrice: total,
-        withBox: false,
+        costPriceUnit: shoeCost,
+        boxFeeUnit: boxCost,
+        withBox: boxCost > 0,
       ),
     ],
   );

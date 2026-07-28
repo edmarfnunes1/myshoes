@@ -141,6 +141,12 @@ void main() {
       ).data,
       '1',
     );
+    expect(
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-custo-total')),
+      ).data,
+      'R\$ 65,00',
+    );
 
     await tester.tap(find.byKey(const ValueKey('financial-order-30')));
     await tester.pumpAndSettle();
@@ -172,6 +178,12 @@ void main() {
       ).data,
       '0',
     );
+    expect(
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-custo-total')),
+      ).data,
+      'R\$ 65,00',
+    );
     expect(find.text('Pagamento atualizado com sucesso.'), findsOneWidget);
   });
 }
@@ -197,7 +209,9 @@ Order _order({
         shoeSize: 40,
         quantity: 1,
         unitPrice: 100,
-        withBox: false,
+        costPriceUnit: 60,
+        boxFeeUnit: 5,
+        withBox: true,
       ),
     ],
   );

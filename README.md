@@ -1,29 +1,53 @@
 # MyShoes
 
-Aplicativo Android offline desenvolvido para vendedores de calçados organizarem produtos, pedidos e consolidações para fábrica.
+Aplicativo Android offline desenvolvido para vendedores de calçados realizarem o cadastro de produtos, gerenciamento de pedidos, controle financeiro e consolidação de pedidos para envio à fábrica.
 
-O MyShoes funciona sem conexão com a internet e armazena os dados localmente no dispositivo utilizando SQLite.
+Todos os dados são armazenados localmente utilizando SQLite, permitindo o funcionamento completo sem conexão com a internet.
 
-## Funcionalidades atuais
+---
 
-### Produtos
+# Principais funcionalidades
 
-- Listagem de produtos cadastrados
+## 👟 Cadastro de tênis
+
+- Cadastro completo de tênis
 - Pesquisa por marca, modelo, ID e data
-- Cadastro e edição de produtos
+- Ordenação por data ou ordem alfabética
+- Cadastro de valor de custo
+- Cadastro de valor de venda
+- Definição da numeração mínima e máxima
+- Observações opcionais
 - Exclusão com confirmação
 - Validação de campos obrigatórios
-- Valores formatados em moeda brasileira
-- Definição de numeração mínima e máxima
-- Valor de venda opcional
-- Observações opcionais
-- Exibição da logo da marca no card do produto
-- Fallback para o ícone padrão `tenis_neon4.png` quando não houver logo
-- Armazenamento offline com SQLite
+- Armazenamento offline
+- Miniatura da marca nos cards
+- Suporte a galeria de fotos do produto
+- Foto principal e múltiplas imagens
+- Carrossel com visualização em tela cheia
 
-### Marcas com logo
+---
 
-O aplicativo possui suporte visual para as seguintes marcas:
+## 🖼️ Galeria de fotos
+
+Cada tênis pode possuir até cinco fotos.
+
+Recursos:
+
+- Seleção múltipla pela galeria
+- Compressão automática
+- Correção de orientação
+- Miniaturas otimizadas
+- Foto principal
+- Reordenação
+- Exclusão individual
+- Visualização em tela cheia
+- Zoom nas imagens
+
+---
+
+## 🏷️ Marcas com identidade visual
+
+O aplicativo possui logos personalizadas para:
 
 - Nike
 - Adidas
@@ -46,208 +70,302 @@ O aplicativo possui suporte visual para as seguintes marcas:
 - DC Shoes
 - Balenciaga
 
-As imagens das marcas ficam em:
+Caso não exista uma logo cadastrada, é utilizado automaticamente o ícone padrão do aplicativo.
 
-```text
-assets/Icones/
-```
+---
 
-### Pedidos
+## 📦 Pedidos
 
-- Criação e edição de pedidos
-- Nome e telefone do cliente informados diretamente no pedido
-- Importação de contato da agenda do dispositivo
-- Inclusão de um ou mais produtos no pedido
-- Pesquisa de produtos por marca ou modelo
+- Cadastro de clientes
+- Importação da agenda do telefone
+- Múltiplos itens por pedido
 - Seleção de numeração
-- Informação de cor por item
 - Controle de quantidade
-- Opção com ou sem caixa
+- Cor por item
+- Com ou sem caixa
 - Valor de venda
-- Situação de pagamento: Pendente ou Pago
-- Observações opcionais
-- Cálculo dos totais
+- Situação do pagamento
+- Pagamento parcial
+- Observações
+- Cálculo automático dos totais
 - Pesquisa por ID e data
-- Ordenação por data e ordem alfabética
-- Armazenamento offline com SQLite
+- Ordenação por data ou nome do cliente
 
-### Fábrica
+---
 
-- Consolidação dos pedidos para envio à fábrica
-- Agrupamento das informações em uma única mensagem
-- Compartilhamento pelo WhatsApp
-- Geração de PDF
-- Geração de texto
-- Exibição detalhada do lote
-- Ações de compartilhamento disponíveis no final da página
+## 🏭 Produção
 
-### Sobre
+Os pedidos podem ser enviados para produção através da tela Fábrica.
 
-A tela **Sobre** apresenta:
+Após enviados:
 
-- Nome do aplicativo
-- Versão
-- Descrição
-- Principais recursos
-- Informação de funcionamento offline
-- Desenvolvido por **Innova QaSolutions**
-- Campo Mourão - PR
+- cliente permanece bloqueado
+- itens permanecem bloqueados
+- produtos permanecem bloqueados
+- quantidades permanecem bloqueadas
+- cores permanecem bloqueadas
+- caixa permanece bloqueada
+- exclusão bloqueada
 
-## Campos do produto
+Permite alterar apenas:
+
+- situação do pagamento
+- valor pago
+- observações financeiras
+
+---
+
+## 🏭 Consolidação para fábrica
+
+- Geração automática de lotes
+- Agrupamento inteligente
+- Consolidação por marca
+- Modelo
+- Numeração
+- Cor
+- Com ou sem caixa
+- Histórico de lotes
+- Visualização detalhada
+- Compartilhamento via WhatsApp
+- Compartilhamento por texto
+- Exportação em PDF
+
+---
+
+## 💰 Financeiro
+
+Controle financeiro completo dos pedidos.
+
+Resumo por período:
+
+- Hoje
+- Esta semana
+- Este mês
+- Mês passado
+- Personalizado
+
+Indicadores:
+
+- Total vendido
+- Total recebido
+- Total pendente
+- Custo dos tênis
+- Custo das caixas
+- Custo total
+- Lucro
+
+Cada pedido apresenta:
+
+- Venda
+- Recebido
+- Saldo
+- Custo dos tênis
+- Custo das caixas
+- Custo total
+- Lucro
+
+---
+
+## ⚙️ Configurações
+
+Tela preparada para futuras configurações da fábrica.
+
+Atualmente disponível:
+
+### Adicionais da fábrica
+
+- Valor cobrado por caixa
+
+O valor configurado é salvo junto ao pedido, preservando o histórico financeiro mesmo que a configuração seja alterada futuramente.
+
+A estrutura foi preparada para suportar novos adicionais da fábrica em versões futuras.
+
+---
+
+## ℹ️ Sobre
+
+A tela Sobre apresenta:
+
+- versão automática do aplicativo
+- informações do projeto
+- principais funcionalidades
+- funcionamento offline
+- desenvolvedor
+- localização
+
+A versão é lida automaticamente do arquivo `pubspec.yaml`.
+
+---
+
+# Campos do cadastro de tênis
 
 - Marca
 - Modelo
 - Numeração mínima
 - Numeração máxima
 - Valor de custo
-- Valor de venda, opcional
-- Observações, opcional
+- Valor de venda
+- Observações
+- Fotos
 
-## Campos do pedido
+---
+
+# Campos do pedido
 
 - Cliente
-- Telefone, opcional
-- Produto
+- Telefone
+- Tênis
 - Cor
 - Numeração
 - Quantidade
 - Com ou sem caixa
 - Valor de venda
 - Situação do pagamento
-- Observações, opcional
+- Valor pago
+- Observações
 
-## Tecnologias utilizadas
+---
+
+# Tecnologias utilizadas
 
 - Flutter
 - Dart
 - SQLite
 - Material Design
-- `sqflite`
-- `intl`
-- `flutter_contacts`
 
-## Identidade visual
+Principais pacotes:
+
+- sqflite
+- intl
+- flutter_contacts
+- share_plus
+- image_picker
+- image
+- path_provider
+
+---
+
+# Identidade visual
 
 - Fundo: `#F8F9FA`
 - Cor principal: `#CCFF00`
 - Cor escura: `#0D131D`
-- Cards brancos com cantos arredondados
-- Logo principal: `assets/images/myshoes_logo.png`
-- Ícone padrão: `assets/images/tenis_neon4.png`
+- Cards brancos
+- Bordas arredondadas
+- Logo oficial
+- Ícone padrão para marcas sem logo
 
-## Como executar
+---
 
-Certifique-se de que o Flutter SDK esteja instalado e configurado.
+# Estrutura do projeto
 
-Na raiz do projeto, execute:
+```text
+assets/
+├── Icones/
+├── images/
+
+lib/
+├── database/
+├── models/
+├── pages/
+├── repositories/
+├── services/
+├── widgets/
+└── theme/
+```
+
+---
+
+# Executando o projeto
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-Para executar em um dispositivo específico:
+Selecionar dispositivo:
 
 ```bash
 flutter devices
 flutter run -d ID_DO_DISPOSITIVO
 ```
 
-## Verificações do projeto
+---
 
-Para analisar possíveis problemas no código:
+# Qualidade
+
+Analisar projeto:
 
 ```bash
 flutter analyze
 ```
 
-Para executar os testes automatizados:
+Executar testes:
 
 ```bash
 flutter test
 ```
 
-## Gerar APK
+---
 
-Versão de teste:
+# Gerar APK
+
+Debug:
 
 ```bash
 flutter build apk --debug
 ```
 
-Versão de produção:
+Release:
 
 ```bash
 flutter build apk --release
 ```
 
-O APK de produção será criado em:
+APK:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-## Gerar App Bundle
+---
 
-Para publicação na Google Play:
+# Gerar App Bundle
 
 ```bash
 flutter build appbundle --release
 ```
 
-O arquivo será criado em:
+Bundle:
 
 ```text
 build/app/outputs/bundle/release/app-release.aab
 ```
 
-## Estrutura principal
+---
 
-```text
-assets/
-├── Icones/
-│   └── logos das marcas
-└── images/
-    ├── myshoes_logo.png
-    └── tenis_neon4.png
+# Versão
 
-lib/
-├── pages/
-├── screens/
-├── models/
-├── database/
-└── widgets/
+A versão é controlada exclusivamente pelo arquivo:
+
+```yaml
+pubspec.yaml
 ```
 
-## Git
+Exemplo:
 
-Exemplo de commit para esta versão:
-
-```bash
-git add .
-git commit -m "feat: conclui primeira versão do MyShoes"
-git push
+```yaml
+version: 2.0.0+2
 ```
 
-## Versão
+A tela **Sobre** utiliza automaticamente essa informação.
 
-```text
-1.0.0
-```
+---
 
-## Desenvolvido por
+# Desenvolvido por
 
 **Innova QaSolutions**
 
 Campo Mourão - PR
 
 © 2026 Innova QaSolutions
-
-
-
-reportgenerator `
-  "-reports:E:\myshoes\coverage\lcov.info" `
-  "-targetdir:E:\myshoes\coverage\html" `
-  "-reporttypes:Html"
-
-  start E:\myshoes\coverage\html\index.html

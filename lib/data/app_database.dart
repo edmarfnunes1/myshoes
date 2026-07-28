@@ -34,7 +34,7 @@ class AppDatabase {
     return factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 11,
+        version: 13,
         onConfigure: (database) async {
           await database.execute('PRAGMA foreign_keys = ON');
         },
@@ -45,6 +45,7 @@ class AppDatabase {
           await _createOrderItemsTable(database, includeColor: true);
           await _createProductionBatchTables(database);
           await _createProductImagesTable(database);
+          await _createAppSettingsTable(database);
         },
         onUpgrade: (database, oldVersion, newVersion) async {
           if (oldVersion < 2) {
@@ -82,6 +83,12 @@ class AppDatabase {
           }
           if (oldVersion < 11) {
             await _migrateAmountPaid(database);
+          }
+          if (oldVersion < 12) {
+            await _migrateBoxFee(database);
+          }
+          if (oldVersion < 13) {
+            await _migrateCostPriceSnapshot(database);
           }
         },
       ),
@@ -174,6 +181,8 @@ class AppDatabase {
         quantity INTEGER NOT NULL,
         with_box INTEGER NOT NULL DEFAULT 0,
         unit_price REAL NOT NULL,
+        cost_price_unit REAL NOT NULL DEFAULT 0,
+        box_fee_unit REAL NOT NULL DEFAULT 0,
         FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
         FOREIGN KEY (product_id) REFERENCES products(id)
       )
@@ -313,6 +322,51 @@ class AppDatabase {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_product_images_one_primary
       ON product_images(product_id)
       WHERE is_primary = 1
+    ''');
+  }
+
+  Future<void> _createAppSettingsTable(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+    await database.insert(
+      'app_settings',
+      {'key': 'box_fee', 'value': '5.00'},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  Future<void> _migrateBoxFee(Database database) async {
+    if (await _tableExists(database, 'order_items') &&
+        !await _columnExists(database, 'order_items', 'box_fee_unit')) {
+      await database.execute(
+        'ALTER TABLE order_items ADD COLUMN box_fee_unit REAL NOT NULL DEFAULT 0',
+      );
+    }
+    await _createAppSettingsTable(database);
+  }
+
+  Future<void> _migrateCostPriceSnapshot(Database database) async {
+    if (!await _tableExists(database, 'order_items')) return;
+
+    if (!await _columnExists(database, 'order_items', 'cost_price_unit')) {
+      await database.execute(
+        'ALTER TABLE order_items ADD COLUMN cost_price_unit REAL NOT NULL DEFAULT 0',
+      );
+    }
+
+    if (!await _tableExists(database, 'products')) return;
+    await database.execute('''
+      UPDATE order_items
+      SET cost_price_unit = COALESCE((
+        SELECT products.cost_price
+        FROM products
+        WHERE products.id = order_items.product_id
+      ), 0)
+      WHERE cost_price_unit = 0
     ''');
   }
 

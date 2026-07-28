@@ -4,7 +4,7 @@ import '../theme/app_colors.dart';
 import '../pages/financial/financial_dashboard_page.dart';
 import '../pages/orders/order_list_page.dart';
 import '../pages/production/production_batch_page.dart';
-import 'about_screen.dart';
+import 'settings_screen.dart';
 import 'product_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -30,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
         FinancialDashboardPage(refreshToken: _financialRefreshToken),
-        const AboutScreen(),
+        const SettingsScreen(),
       ];
 
   @override
@@ -66,10 +66,9 @@ class _HomeScreenState extends State<HomeScreen> {
               });
             },
             destinations: [
-              _destination(
+              _imageDestination(
                 index: 0,
-                icon: Icons.inventory_2_outlined,
-                selectedIcon: Icons.inventory_2,
+                assetPath: 'assets/images/tenis_neon4.png',
                 label: 'Tênis',
               ),
               _destination(
@@ -92,14 +91,34 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _destination(
                 index: 4,
-                icon: Icons.info_outline,
-                selectedIcon: Icons.info,
-                label: 'Sobre',
+                icon: Icons.settings_outlined,
+                selectedIcon: Icons.settings,
+                label: 'Configurações',
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  NavigationDestination _imageDestination({
+    required int index,
+    required String assetPath,
+    required String label,
+  }) {
+    final selected = _selectedIndex == index;
+
+    return NavigationDestination(
+      icon: _NavigationAssetIcon(
+        assetPath: assetPath,
+        selected: false,
+      ),
+      selectedIcon: _NavigationAssetIcon(
+        assetPath: assetPath,
+        selected: selected,
+      ),
+      label: label,
     );
   }
 
@@ -145,3 +164,40 @@ class _NavigationIcon extends StatelessWidget {
     );
   }
 }
+
+class _NavigationAssetIcon extends StatelessWidget {
+  const _NavigationAssetIcon({
+    required this.assetPath,
+    required this.selected,
+  });
+
+  final String assetPath;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          width: selected ? 36 : 0,
+          height: 3,
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: AppColors.neon,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+        Image.asset(
+          assetPath,
+          width: 27,
+          height: 27,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag_outlined),
+        ),
+      ],
+    );
+  }
+}
+

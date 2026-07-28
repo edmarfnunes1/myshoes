@@ -14,6 +14,7 @@ void main() {
             quantity: 2,
             withBox: false,
             unitPrice: 100,
+            costPriceUnit: 60,
           ),
           OrderItem(
             productId: 2,
@@ -21,12 +22,18 @@ void main() {
             quantity: 1,
             withBox: true,
             unitPrice: 250,
+            costPriceUnit: 150,
+            boxFeeUnit: 5,
           ),
         ],
       );
 
       expect(order.totalQuantity, 3);
       expect(order.totalValue, 450);
+      expect(order.shoeCost, 270);
+      expect(order.boxCost, 5);
+      expect(order.totalCost, 275);
+      expect(order.profit, 175);
     });
 
     test('toMap grava somente a data, sem horário', () {

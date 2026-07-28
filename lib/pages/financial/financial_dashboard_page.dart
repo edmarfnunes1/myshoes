@@ -11,6 +11,13 @@ import 'financial_summary.dart';
 
 enum FinancialPeriod { today, yesterday, thisWeek, thisMonth, lastMonth, custom }
 
+const _visibleFinancialPeriods = <FinancialPeriod>[
+  FinancialPeriod.thisWeek,
+  FinancialPeriod.thisMonth,
+  FinancialPeriod.lastMonth,
+  FinancialPeriod.custom,
+];
+
 class FinancialDashboardPage extends StatefulWidget {
   const FinancialDashboardPage({
     super.key,
@@ -276,7 +283,7 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: FinancialPeriod.values.map((period) {
+            children: _visibleFinancialPeriods.map((period) {
               final selected = _selectedPeriod == period;
               return ChoiceChip(
                 key: ValueKey('financial-period-${period.name}'),
@@ -388,6 +395,22 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
               Expanded(child: _summaryCard(title: 'Total em vendas', value: _currency.format(summary.totalSales), icon: Icons.shopping_bag_outlined)),
               const SizedBox(width: 12),
               Expanded(child: _summaryCard(title: 'Pedidos', value: summary.orders.toString(), icon: Icons.receipt_long_outlined)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _summaryCard(title: 'Custo dos tênis', value: _currency.format(summary.shoeCost), icon: Icons.shopping_bag_outlined)),
+              const SizedBox(width: 12),
+              Expanded(child: _summaryCard(title: 'Custo das caixas', value: _currency.format(summary.boxCost), icon: Icons.inventory_2_outlined)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _summaryCard(title: 'Custo total', value: _currency.format(summary.totalCost), icon: Icons.receipt_long_outlined)),
+              const SizedBox(width: 12),
+              Expanded(child: _summaryCard(title: 'Lucro', value: _currency.format(summary.profit), icon: Icons.trending_up)),
             ],
           ),
         ],
@@ -513,20 +536,7 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
   Widget _ordersHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-      child: Row(
-        children: [
-          Expanded(child: _sectionTitle('Pedidos do período')),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.neon,
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: AppColors.dark),
-            ),
-            child: Text('${_visibleOrders.length}', style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
+      child: _sectionTitle('Pedidos do período'),
     );
   }
 
@@ -662,11 +672,21 @@ class _FinancialDashboardPageState extends State<FinancialDashboardPage> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  Expanded(child: _moneyLine('Valor', order.totalValue)),
+                  Expanded(child: _moneyLine('Venda', order.totalValue)),
                   Expanded(child: _moneyLine('Recebido', received)),
                   Expanded(child: _moneyLine('Saldo', pending)),
                 ],
               ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  Expanded(child: _moneyLine('Tênis', order.shoeCost)),
+                  Expanded(child: _moneyLine('Caixas', order.boxCost)),
+                  Expanded(child: _moneyLine('Custo total', order.totalCost)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _moneyLine('Lucro', order.profit),
             ],
           ),
         ),

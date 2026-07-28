@@ -26,6 +26,11 @@ class Order {
   bool get isInProductionBatch => productionBatchId != null;
 
   double get totalValue => items.fold(0, (sum, item) => sum + item.total);
+  double get shoeCost =>
+      items.fold(0, (sum, item) => sum + item.shoeCostTotal);
+  double get boxCost => items.fold(0, (sum, item) => sum + item.boxFeeTotal);
+  double get totalCost => shoeCost + boxCost;
+  double get profit => totalValue - totalCost;
   int get totalQuantity => items.fold(0, (sum, item) => sum + item.quantity);
 
   Map<String, Object?> toMap() => {

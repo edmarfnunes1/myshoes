@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/order_repository.dart';
 import '../../data/product_repository.dart';
+import '../../data/settings_repository.dart';
 import '../../models/order.dart';
 import '../../models/order_item.dart';
 import '../../models/product.dart';
@@ -18,11 +19,13 @@ class OrderFormPage extends StatefulWidget {
     this.order,
     this.orderRepository,
     this.productRepository,
+    this.settingsRepository,
   });
 
   final Order? order;
   final OrderRepository? orderRepository;
   final ProductRepository? productRepository;
+  final SettingsRepository? settingsRepository;
 
   @override
   State<OrderFormPage> createState() => _OrderFormPageState();
@@ -112,7 +115,10 @@ class _OrderFormPageState extends State<OrderFormPage> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => _OrderItemSheet(product: product),
+      builder: (context) => _OrderItemSheet(
+        product: product,
+        settingsRepository: widget.settingsRepository,
+      ),
     );
     if (item == null) return;
 
@@ -131,6 +137,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
       builder: (context) => _OrderItemSheet(
         product: product,
         initialItem: current,
+        settingsRepository: widget.settingsRepository,
       ),
     );
     if (edited == null) return;
@@ -149,7 +156,9 @@ class _OrderFormPageState extends State<OrderFormPage> {
           (current.color ?? '').trim().toLowerCase() ==
               (item.color ?? '').trim().toLowerCase() &&
           current.withBox == item.withBox &&
-          (current.unitPrice - item.unitPrice).abs() < 0.001,
+          (current.unitPrice - item.unitPrice).abs() < 0.001 &&
+          (current.costPriceUnit - item.costPriceUnit).abs() < 0.001 &&
+          (current.boxFeeUnit - item.boxFeeUnit).abs() < 0.001,
     );
 
     if (existingIndex == -1) {
@@ -310,10 +319,12 @@ class _OrderFormPageState extends State<OrderFormPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          : SafeArea(
+              top: false,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
                   if (_paymentOnly) ...[
                     Container(
@@ -603,7 +614,8 @@ class _OrderFormPageState extends State<OrderFormPage> {
                               : 'Salvar pedido',
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
@@ -736,10 +748,15 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _OrderItemSheet extends StatefulWidget {
-  const _OrderItemSheet({required this.product, this.initialItem});
+  const _OrderItemSheet({
+    required this.product,
+    this.initialItem,
+    this.settingsRepository,
+  });
 
   final Product product;
   final OrderItem? initialItem;
+  final SettingsRepository? settingsRepository;
 
   @override
   State<_OrderItemSheet> createState() => _OrderItemSheetState();
@@ -752,6 +769,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
   int? _shoeSize;
   int _quantity = 1;
   bool _withBox = false;
+  double _configuredBoxFee = SettingsRepository.defaultBoxFee;
 
   @override
   void initState() {
@@ -762,6 +780,7 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
     _quantity = item?.quantity ?? 1;
     _withBox = item?.withBox ?? false;
     final value = item?.unitPrice ?? widget.product.salePrice;
+    _loadBoxFee();
     if (value != null) {
       _valueController.text = NumberFormat.currency(
         locale: 'pt_BR',
@@ -769,6 +788,13 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
         decimalDigits: 2,
       ).format(value);
     }
+  }
+
+  Future<void> _loadBoxFee() async {
+    final repository = widget.settingsRepository ?? SettingsRepository();
+    final value = await repository.getBoxFee();
+    if (!mounted) return;
+    setState(() => _configuredBoxFee = value);
   }
 
   List<int> get _sizes => [
@@ -793,6 +819,12 @@ class _OrderItemSheetState extends State<_OrderItemSheet> {
         quantity: _quantity,
         withBox: _withBox,
         unitPrice: CurrencyInputFormatter.parse(_valueController.text)!,
+        costPriceUnit: widget.initialItem?.costPriceUnit ?? widget.product.costPrice,
+        boxFeeUnit: _withBox
+            ? (widget.initialItem?.withBox == true
+                ? widget.initialItem!.boxFeeUnit
+                : _configuredBoxFee)
+            : 0,
         productName: '${widget.product.brand} ${widget.product.model}',
       ),
     );

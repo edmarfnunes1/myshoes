@@ -25,6 +25,8 @@ void main() {
         quantity: 2,
         withBox: true,
         unitPrice: 220,
+        costPriceUnit: 140,
+        boxFeeUnit: 7.5,
         productName: 'Adidas A3',
       );
 
@@ -38,6 +40,29 @@ void main() {
       expect(result.color, 'Azul marinho');
       expect(result.withBox, isTrue);
       expect(result.productName, 'Adidas A3');
+      expect(result.costPriceUnit, 140);
+      expect(result.shoeCostTotal, 280);
+      expect(result.boxFeeUnit, 7.5);
+      expect(result.boxFeeTotal, 15);
+      expect(result.totalCost, 295);
+      expect(result.profit, 145);
+    });
+
+    test('mapa antigo assume custos históricos iguais a zero', () {
+      final item = OrderItem.fromMap({
+        'id': 1,
+        'order_id': 2,
+        'product_id': 3,
+        'shoe_size': 39,
+        'quantity': 1,
+        'with_box': 1,
+        'unit_price': 200.0,
+      });
+
+      expect(item.costPriceUnit, 0);
+      expect(item.boxFeeUnit, 0);
+      expect(item.totalCost, 0);
+      expect(item.profit, 200);
     });
 
     test('copyWith altera a cor e a quantidade', () {

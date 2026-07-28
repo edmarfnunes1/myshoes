@@ -351,7 +351,7 @@ void main() {
     );
     final version = await database.getVersion();
 
-    expect(version, 11);
+    expect(version, 13);
     expect(imageTables, hasLength(1));
     expect(products, hasLength(1));
     expect(products.single['brand'], 'Adidas');

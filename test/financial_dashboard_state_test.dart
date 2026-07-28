@@ -133,84 +133,95 @@ void main() {
     expect(find.byKey(const ValueKey('financial-order-2')), findsOneWidget);
   });
 
-  testWidgets('filtro Hoje exibe somente pedidos da data atual', (tester) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final repository = ControlledFinancialRepository(
-      orders: [
-        _order(id: 10, customer: 'Hoje', date: today),
-        _order(
-          id: 20,
-          customer: 'Ontem',
-          date: today.subtract(const Duration(days: 1)),
-        ),
-      ],
-    );
-
-    await pumpDashboard(tester, repository);
-    await tester.tap(
-      find.byKey(const ValueKey('financial-period-today')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('financial-order-10')), findsOneWidget);
-    expect(find.byKey(const ValueKey('financial-order-20')), findsNothing);
-    expect(
-      tester
-          .widget<Text>(
-            find.byKey(
-              const ValueKey('financial-summary-value-pedidos'),
-            ),
-          )
-          .data,
-      '1',
-    );
-  });
-
-  testWidgets('filtro Ontem recalcula lista e resumo automaticamente',
+  testWidgets('exibe somente os quatro filtros financeiros permitidos',
       (tester) async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final repository = ControlledFinancialRepository(
+      orders: [_order(id: 10, customer: 'Cliente', date: DateTime.now())],
+    );
+
+    await pumpDashboard(tester, repository);
+
+    expect(
+      find.byKey(const ValueKey('financial-period-today')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('financial-period-yesterday')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('financial-period-thisWeek')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('financial-period-thisMonth')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('financial-period-lastMonth')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('financial-period-custom')),
+      findsOneWidget,
+    );
+  });
+
+
+  testWidgets('exibe custos e lucro do período e no detalhamento do pedido',
+      (tester) async {
     final repository = ControlledFinancialRepository(
       orders: [
-        _order(id: 10, customer: 'Hoje', date: today, total: 100),
         _order(
-          id: 20,
-          customer: 'Ontem',
-          date: today.subtract(const Duration(days: 1)),
-          total: 250,
-          status: 'Pago',
+          id: 50,
+          customer: 'Cliente Financeiro',
+          date: DateTime.now(),
+          total: 350,
+          costPriceUnit: 200,
+          boxFeeUnit: 5,
+          withBox: true,
         ),
       ],
     );
 
     await pumpDashboard(tester, repository);
-    await tester.tap(
-      find.byKey(const ValueKey('financial-period-yesterday')),
-    );
-    await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('financial-order-20')), findsOneWidget);
-    expect(find.byKey(const ValueKey('financial-order-10')), findsNothing);
     expect(
-      tester
-          .widget<Text>(
-            find.byKey(
-              const ValueKey('financial-summary-value-total-em-vendas'),
-            ),
-          )
-          .data,
-      'R\$ 250,00',
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-custo-dos-tênis')),
+      ).data,
+      'R\$ 200,00',
     );
     expect(
-      tester
-          .widget<Text>(
-            find.byKey(const ValueKey('financial-status-pago-count')),
-          )
-          .data,
-      '1',
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-custo-das-caixas')),
+      ).data,
+      'R\$ 5,00',
     );
+    expect(
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-custo-total')),
+      ).data,
+      'R\$ 205,00',
+    );
+    expect(
+      tester.widget<Text>(
+        find.byKey(const ValueKey('financial-summary-value-lucro')),
+      ).data,
+      'R\$ 145,00',
+    );
+
+    final orderCard = find.byKey(const ValueKey('financial-order-50'));
+    await tester.ensureVisible(orderCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Tênis'), findsWidgets);
+    expect(find.text('Caixas'), findsOneWidget);
+    expect(find.text('Custo total'), findsWidgets);
+    expect(find.text('Lucro'), findsWidgets);
+    expect(find.text('R\$ 205,00'), findsWidgets);
+    expect(find.text('R\$ 145,00'), findsWidgets);
   });
+
 }
 
 Order _order({
@@ -219,6 +230,9 @@ Order _order({
   required DateTime date,
   String status = 'Pendente',
   double total = 100,
+  double costPriceUnit = 0,
+  double boxFeeUnit = 0,
+  bool withBox = false,
 }) {
   return Order(
     id: id,
@@ -232,7 +246,9 @@ Order _order({
         shoeSize: 40,
         quantity: 1,
         unitPrice: total,
-        withBox: false,
+        costPriceUnit: costPriceUnit,
+        boxFeeUnit: boxFeeUnit,
+        withBox: withBox,
       ),
     ],
   );

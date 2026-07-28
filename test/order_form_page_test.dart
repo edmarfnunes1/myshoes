@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:myshoes/data/order_repository.dart';
 import 'package:myshoes/data/product_repository.dart';
+import 'package:myshoes/data/settings_repository.dart';
 import 'package:myshoes/models/order.dart';
 import 'package:myshoes/models/order_item.dart';
 import 'package:myshoes/models/product.dart';
@@ -49,6 +50,15 @@ class FakeProductRepository extends ProductRepository {
   Future<List<Product>> findAll({String search = ''}) async => products;
 }
 
+class FakeSettingsRepository extends SettingsRepository {
+  FakeSettingsRepository(this.value);
+
+  final double value;
+
+  @override
+  Future<double> getBoxFee() async => value;
+}
+
 void main() {
   const product = Product(
     id: 1,
@@ -65,6 +75,7 @@ void main() {
     FakeOrderRepository? orderRepository,
     FakeProductRepository? productRepository,
     Order? order,
+    SettingsRepository? settingsRepository,
   }) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1;
@@ -78,6 +89,8 @@ void main() {
           orderRepository: orderRepository ?? FakeOrderRepository(),
           productRepository:
               productRepository ?? FakeProductRepository(products: [product]),
+          settingsRepository:
+              settingsRepository ?? FakeSettingsRepository(5),
         ),
       ),
     );
@@ -87,6 +100,8 @@ void main() {
   Future<void> addProduct(
     WidgetTester tester, {
     String? color,
+    bool withBox = false,
+    int quantity = 1,
   }) async {
     await tester.tap(find.text('Adicionar tênis'));
     await tester.pumpAndSettle();
@@ -102,6 +117,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('39').last);
     await tester.pumpAndSettle();
+
+    for (var i = 1; i < quantity; i++) {
+      await tester.tap(find.byKey(const ValueKey('order-item-quantity-increase')));
+    }
+
+    if (withBox) {
+      await tester.tap(find.text('Com caixa'));
+      await tester.pump();
+    }
 
     if (color != null) {
       await tester.enterText(
@@ -201,6 +225,32 @@ void main() {
   });
 
   group('OrderFormPage - itens e salvamento', () {
+    testWidgets('registra o valor unitário da caixa da configuração',
+        (tester) async {
+      final repository = FakeOrderRepository();
+      await pumpPage(
+        tester,
+        orderRepository: repository,
+        settingsRepository: FakeSettingsRepository(7.5),
+      );
+      await addProduct(tester, withBox: true, quantity: 2);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nome *'),
+        'Cliente Caixa',
+      );
+      await tester.ensureVisible(find.text('Salvar pedido'));
+      await tester.tap(find.text('Salvar pedido'));
+      await tester.pumpAndSettle();
+
+      final item = repository.savedOrder!.items.single;
+      expect(item.costPriceUnit, 200);
+      expect(item.shoeCostTotal, 400);
+      expect(item.boxFeeUnit, 7.5);
+      expect(item.boxFeeTotal, 15);
+      expect(item.totalCost, 415);
+    });
+
     testWidgets('adiciona produto e calcula o total', (tester) async {
       await pumpPage(tester);
       await addProduct(tester);
@@ -554,7 +604,10 @@ void main() {
     expect(find.text('Adicionar tênis'), findsNothing);
     expect(find.text('Editar item'), findsNothing);
 
-    await tester.tap(find.text('Situação do pagamento').last);
+    final paymentDropdown = find.byType(DropdownMenu<String>).last;
+    await tester.ensureVisible(paymentDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(paymentDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pago').last);
     await tester.pumpAndSettle();

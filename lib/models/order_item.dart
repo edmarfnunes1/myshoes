@@ -8,6 +8,8 @@ class OrderItem {
     required this.quantity,
     required this.withBox,
     required this.unitPrice,
+    this.costPriceUnit = 0,
+    this.boxFeeUnit = 0,
     this.productName,
   });
 
@@ -19,9 +21,19 @@ class OrderItem {
   final int quantity;
   final bool withBox;
   final double unitPrice;
+  final double costPriceUnit;
+  final double boxFeeUnit;
   final String? productName;
 
   double get total => unitPrice * quantity;
+
+  double get shoeCostTotal => costPriceUnit * quantity;
+
+  double get boxFeeTotal => boxFeeUnit * quantity;
+
+  double get totalCost => shoeCostTotal + boxFeeTotal;
+
+  double get profit => total - totalCost;
 
   OrderItem copyWith({
     int? id,
@@ -33,6 +45,8 @@ class OrderItem {
     int? quantity,
     bool? withBox,
     double? unitPrice,
+    double? costPriceUnit,
+    double? boxFeeUnit,
     String? productName,
   }) {
     return OrderItem(
@@ -44,6 +58,8 @@ class OrderItem {
       quantity: quantity ?? this.quantity,
       withBox: withBox ?? this.withBox,
       unitPrice: unitPrice ?? this.unitPrice,
+      costPriceUnit: costPriceUnit ?? this.costPriceUnit,
+      boxFeeUnit: boxFeeUnit ?? this.boxFeeUnit,
       productName: productName ?? this.productName,
     );
   }
@@ -57,6 +73,8 @@ class OrderItem {
         'quantity': quantity,
         'with_box': withBox ? 1 : 0,
         'unit_price': unitPrice,
+        'cost_price_unit': costPriceUnit,
+        'box_fee_unit': boxFeeUnit,
       };
 
   factory OrderItem.fromMap(Map<String, Object?> map) => OrderItem(
@@ -68,6 +86,8 @@ class OrderItem {
         quantity: map['quantity'] as int,
         withBox: (map['with_box'] as int? ?? 0) == 1,
         unitPrice: (map['unit_price'] as num).toDouble(),
+        costPriceUnit: (map['cost_price_unit'] as num? ?? 0).toDouble(),
+        boxFeeUnit: (map['box_fee_unit'] as num? ?? 0).toDouble(),
         productName: map['product_name'] as String?,
       );
 }

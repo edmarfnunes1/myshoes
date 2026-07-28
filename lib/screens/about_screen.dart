@@ -1,12 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/app_page_header.dart';
 
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
-  static const String appVersion = '1.0.0';
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  late final Future<String> _appVersionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _appVersionFuture = _loadAppVersion();
+  }
+
+
+  Future<String> _loadAppVersion() async {
+    try {
+      final pubspec = await rootBundle.loadString('pubspec.yaml');
+      final versionMatch = RegExp(
+        r'^version:\s*([^+\s]+)(?:\+\S+)?\s*$',
+        multiLine: true,
+      ).firstMatch(pubspec);
+
+      return versionMatch?.group(1) ?? 'Não informada';
+    } catch (_) {
+      return 'Não informada';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,13 +48,21 @@ class AboutScreen extends StatelessWidget {
               horizontalPadding: 0,
             ),
             const SizedBox(height: 20),
-            const _InfoCard(
+            _InfoCard(
               icon: Icons.info_outline,
               title: 'Informações',
               children: [
-                _InfoRow(label: 'Versão', value: appVersion),
-                Divider(height: 24),
-                _InfoRow(
+                FutureBuilder<String>(
+                  future: _appVersionFuture,
+                  builder: (context, snapshot) {
+                    return _InfoRow(
+                      label: 'Versão',
+                      value: snapshot.data ?? 'Carregando...',
+                    );
+                  },
+                ),
+                const Divider(height: 24),
+                const _InfoRow(
                   label: 'Desenvolvido por',
                   value: 'Innova QaSolutions',
                 ),
@@ -116,6 +151,21 @@ class _InfoCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
+
+  Future<String> _loadAppVersion() async {
+    try {
+      final pubspec = await rootBundle.loadString('pubspec.yaml');
+      final versionMatch = RegExp(
+        r'^version:\s*([^+\s]+)(?:\+\S+)?\s*$',
+        multiLine: true,
+      ).firstMatch(pubspec);
+
+      return versionMatch?.group(1) ?? 'Não informada';
+    } catch (_) {
+      return 'Não informada';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -166,6 +216,21 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
+
+  Future<String> _loadAppVersion() async {
+    try {
+      final pubspec = await rootBundle.loadString('pubspec.yaml');
+      final versionMatch = RegExp(
+        r'^version:\s*([^+\s]+)(?:\+\S+)?\s*$',
+        multiLine: true,
+      ).firstMatch(pubspec);
+
+      return versionMatch?.group(1) ?? 'Não informada';
+    } catch (_) {
+      return 'Não informada';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -201,6 +266,21 @@ class _FeatureRow extends StatelessWidget {
   const _FeatureRow({required this.text});
 
   final String text;
+
+
+  Future<String> _loadAppVersion() async {
+    try {
+      final pubspec = await rootBundle.loadString('pubspec.yaml');
+      final versionMatch = RegExp(
+        r'^version:\s*([^+\s]+)(?:\+\S+)?\s*$',
+        multiLine: true,
+      ).firstMatch(pubspec);
+
+      return versionMatch?.group(1) ?? 'Não informada';
+    } catch (_) {
+      return 'Não informada';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
