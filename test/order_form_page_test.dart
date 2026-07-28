@@ -117,7 +117,9 @@ void main() {
 
 
   Future<void> selectPaymentStatus(WidgetTester tester, String status) async {
-    await tester.tap(find.text('Situação do pagamento').last);
+    final dropdown = find.byType(DropdownMenu<String>);
+    await tester.ensureVisible(dropdown);
+    await tester.tap(dropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text(status).last);
     await tester.pumpAndSettle();

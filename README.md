@@ -242,3 +242,12 @@ git push
 Campo Mourão - PR
 
 © 2026 Innova QaSolutions
+
+
+
+reportgenerator `
+  "-reports:E:\myshoes\coverage\lcov.info" `
+  "-targetdir:E:\myshoes\coverage\html" `
+  "-reporttypes:Html"
+
+  start E:\myshoes\coverage\html\index.html

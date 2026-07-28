@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../pages/financial/financial_dashboard_page.dart';
 import '../pages/orders/order_list_page.dart';
 import '../pages/production/production_batch_page.dart';
 import 'about_screen.dart';
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   int _ordersRefreshToken = 0;
   int _factoryRefreshToken = 0;
+  int _financialRefreshToken = 0;
 
   List<Widget> get _pages => [
         const ProductListScreen(),
@@ -27,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => _ordersRefreshToken++);
           },
         ),
+        FinancialDashboardPage(refreshToken: _financialRefreshToken),
         const AboutScreen(),
       ];
 
@@ -57,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _selectedIndex = index;
                 if (index == 2) {
                   _factoryRefreshToken++;
+                } else if (index == 3) {
+                  _financialRefreshToken++;
                 }
               });
             },
@@ -81,6 +86,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               _destination(
                 index: 3,
+                icon: Icons.account_balance_wallet_outlined,
+                selectedIcon: Icons.account_balance_wallet,
+                label: 'Financeiro',
+              ),
+              _destination(
+                index: 4,
                 icon: Icons.info_outline,
                 selectedIcon: Icons.info,
                 label: 'Sobre',
